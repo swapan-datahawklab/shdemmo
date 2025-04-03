@@ -6,7 +6,7 @@ set -e
 # Configuration
 APP_NAME="shdemmo"
 APP_VERSION="1.0-SNAPSHOT"
-BUNDLE_NAME="${APP_NAME}-bundle"
+BUNDLE_NAME="${APP_NAME}-bundle-linux"
 MAIN_CLASS="com.example.shelldemo.App"
 
 # Ensure we're in the project root directory
@@ -45,11 +45,11 @@ sed -e "s/\${LOG_DIRECTORY:-logs}/logs/g" \
     -e "s/\${LOG_FILENAME:-application.log}/application.log/g" \
     -e "s/\${LOG_LEVEL:-INFO}/INFO/g" \
     -e "s/\${ROOT_LOG_LEVEL:-WARN}/WARN/g" \
-    "scripts/logback.xml.template" > "$BUNDLE_NAME/app/logback.xml"
+    "create-distribution/logback.xml.template" > "$BUNDLE_NAME/app/logback.xml"
 
 # Copy and configure launcher script
 echo "Copying launcher script..."
-cp "scripts/run.sh.template" "$BUNDLE_NAME/run.sh"
+cp "create-distribution/run.sh.template" "$BUNDLE_NAME/run.sh"
 chmod +x "$BUNDLE_NAME/run.sh"
 
 # Create Windows launcher
@@ -63,7 +63,7 @@ EOF
 echo "Creating bundle README..."
 sed -e "s/\${APPLICATION_NAME}/${APP_NAME}/g" \
     -e "s/\${BUNDLE_NAME}/${BUNDLE_NAME}/g" \
-    "scripts/README.md.template" > "$BUNDLE_NAME/README.md"
+    "create-distribution/README.md.template" > "$BUNDLE_NAME/README.md"
 
 # Create archive
 echo "Creating archive..."
