@@ -15,9 +15,13 @@ if [ ! -f "pom.xml" ]; then
     exit 1
 fi
 
-# Build the application
-echo "Building application..."
-mvn clean package
+# Build the application only if SKIP_MVN_BUILD is not set
+if [ -z "$SKIP_MVN_BUILD" ]; then
+    echo "Building application..."
+    mvn clean package
+else
+    echo "Skipping Maven build as SKIP_MVN_BUILD is set"
+fi
 
 # Create bundle directory structure
 echo "Creating bundle directory structure..."

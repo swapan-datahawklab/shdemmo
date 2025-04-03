@@ -4,8 +4,8 @@
     <statusListener class="ch.qos.logback.core.status.NopStatusListener" />
 
     <!-- Properties for logging configuration -->
-    <property name="LOG_DIR" value="${LOG_DIRECTORY:-logs}" />
-    <property name="LOG_FILE" value="${LOG_FILENAME:-application.log}" />
+    <property name="LOG_DIR" value="${app.log.dir:-logs}" />
+    <property name="LOG_FILE" value="application.log" />
     <property name="PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n" />
     <property name="QUIET_PATTERN" value="%msg%n" />
 
@@ -48,7 +48,7 @@
     <logger name="com.example.shelldemo" level="${app.level:-INFO}" />
 
     <!-- Root Logger -->
-    <root level="${root.level:-WARN}">
+    <root level="${root.level:-INFO}">
         <appender-ref ref="CONSOLE" />
         <appender-ref ref="ASYNC" />
     </root>

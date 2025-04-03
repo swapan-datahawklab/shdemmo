@@ -1,0 +1,134 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Markdown Best Practices and Standards
+
+This rule provides comprehensive guidelines for generating markdown files that comply with markdownlint standards and best practices.
+
+## File Organization
+
+- **Headers:**
+  - Use ATX-style headers (`#` for h1, `##` for h2, etc.)
+  - One blank line before and after headers
+  - First line must be a level 1 heading
+  - No duplicate headers within the same section
+
+- **Lists:**
+  - Use dashes (`-`) for unordered lists
+  - Use 2 spaces for list indentation
+  - Ensure proper spacing around lists
+  - Use ordered lists with period (e.g., `1.`, `2.`)
+
+- **Code Blocks:**
+  - Use fenced code blocks with backticks
+  - Always specify the language for code blocks
+  - No tabs in code blocks (use spaces)
+  - No line length restrictions in code blocks
+
+## Formatting Rules
+
+- **Line Length:**
+  - Maximum 120 characters per line
+  - Exceptions for code blocks and tables
+  - Use soft wrapping for long lines
+
+- **Whitespace:**
+  - No trailing spaces
+  - Maximum one blank line between sections
+  - Use 2 spaces for line breaks
+  - No multiple consecutive blank lines
+
+- **Punctuation:**
+  - No trailing punctuation in headers
+  - Consistent punctuation in lists
+  - Proper spacing after list markers
+
+## Content Guidelines
+
+- **HTML Usage:**
+  - Limited HTML elements allowed:
+    - `<kbd>` for keyboard inputs
+    - `<br>` for forced line breaks
+    - `<details>` and `<summary>` for collapsible sections
+  - Avoid other HTML elements
+
+- **Links and References:**
+  - Use reference-style links for better readability
+  - Ensure all links are valid
+  - Use descriptive link text
+
+- **Tables:**
+  - No line length restrictions for tables
+  - Proper column alignment
+  - Header row required
+
+## Examples
+
+### Headers
+
+```markdown
+# Main Title
+
+## Section Title
+
+### Subsection Title
+```
+
+### Lists
+
+```markdown
+- First item
+  - Nested item
+  - Another nested item
+- Second item
+
+1. First ordered item
+2. Second ordered item
+   1. Nested ordered item
+   2. Another nested item
+```
+
+### Code Blocks
+
+```markdown
+```python
+def example():
+    return "This is a code block"
+```
+```
+
+### Tables
+
+```markdown
+| Column 1 | Column 2 | Column 3 |
+|----------|----------|----------|
+| Value 1  | Value 2  | Value 3  |
+```
+
+## Implementation Notes
+
+When generating markdown files:
+
+1. Start with a level 1 heading
+2. Use proper indentation (2 spaces)
+3. Include language specifiers for code blocks
+4. Maintain consistent line spacing
+5. Follow list formatting rules
+6. Respect line length limits (except for code and tables)
+7. Use allowed HTML elements only when necessary
+8. Include proper spacing around headers and lists
+
+## Common Pitfalls to Avoid
+
+- Mixing header styles
+- Inconsistent list indentation
+- Missing code block language specifiers
+- Excessive blank lines
+- Improper HTML usage
+- Trailing whitespace
+- Missing spaces after list markers
+- Duplicate headers in the same section
+
+ 
