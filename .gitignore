@@ -105,6 +105,8 @@ shdemmo-bundle-linux/
 create-distribution/run.sh
 create-distribution/logback.xml
 
+shdemmo-bundle-windows/
+
 # Keep templates and scripts
 !create-distribution/*.template
 !create-distribution/*.sh 

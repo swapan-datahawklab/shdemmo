@@ -32,7 +32,6 @@
 $APP_NAME = "shdemmo"
 $APP_VERSION = "1.0-SNAPSHOT"
 $BUNDLE_NAME = "$APP_NAME-bundle-windows"
-$MAIN_CLASS = "com.example.shelldemo.App"
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Colors for PowerShell output
@@ -227,7 +226,8 @@ if "%LOG_MODE%"=="debug" (
 set "SCRIPT_DIR=%~dp0"
 set "JAVA_OPTS=%JAVA_OPTS% -Dapp.log.dir=%SCRIPT_DIR%logs -Dlogging.config=%SCRIPT_DIR%app\logback.xml"
 
-"%SCRIPT_DIR%runtime\bin\java" %JAVA_OPTS% -cp "%SCRIPT_DIR%app\*.jar" ${MAIN_CLASS} %APP_ARGS%
+for /f "delims=" %%i in ('dir /b /s "%SCRIPT_DIR%app\*.jar"') do set "JAR_FILE=%%i"
+"%SCRIPT_DIR%runtime\bin\java" %JAVA_OPTS% -jar "%JAR_FILE%" %APP_ARGS%
 exit /b %ERRORLEVEL%
 '@
 

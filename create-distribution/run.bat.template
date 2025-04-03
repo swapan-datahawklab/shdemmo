@@ -3,11 +3,18 @@ setlocal EnableDelayedExpansion
 
 set "JAVA_OPTS="
 set "APP_ARGS="
+set "LOG_MODE=default"
 
 :parse_args
 if "%~1"=="" goto run
 if "%~1"=="-l" (
-    set "JAVA_OPTS=!JAVA_OPTS! -Dlogging.level.root=%~2"
+    set "LOG_MODE=%~2"
+    shift
+    shift
+    goto parse_args
+)
+if "%~1"=="--log-mode" (
+    set "LOG_MODE=%~2"
     shift
     shift
     goto parse_args
@@ -25,5 +32,16 @@ shift
 goto parse_args
 
 :run
-java %JAVA_OPTS% -jar app.jar%APP_ARGS%
+if "%LOG_MODE%"=="debug" (
+    set "JAVA_OPTS=-Dlogging.level.root=DEBUG"
+) else if "%LOG_MODE%"=="trace" (
+    set "JAVA_OPTS=-Dlogging.level.root=TRACE"
+) else if "%LOG_MODE%"=="quiet" (
+    set "JAVA_OPTS=-Dlogging.level.root=WARN"
+)
+
+set "SCRIPT_DIR=%~dp0"
+set "JAVA_OPTS=%JAVA_OPTS% -Dapp.log.dir=%SCRIPT_DIR%logs -Dlogging.config=%SCRIPT_DIR%app\logback.xml"
+
+"%SCRIPT_DIR%runtime\bin\java" %JAVA_OPTS% -jar "%SCRIPT_DIR%app\*.jar" %APP_ARGS%
 exit /b %ERRORLEVEL% 

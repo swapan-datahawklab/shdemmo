@@ -1,6 +1,9 @@
 # Shell Demo Application
 A command-line application built with Java and Picocli that demonstrates modern CLI development practices.
 
+.\create-distribution\create-bundle-windows.ps1
+.\shdemmo-bundle-windows\run.bat
+
 ## Features
 
 - Command-line interface with built-in help and version information
