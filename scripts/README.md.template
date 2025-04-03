@@ -1,0 +1,131 @@
+# ${APPLICATION_NAME}
+
+## Overview
+A shell demo application built with Java and Picocli, demonstrating command-line interface functionality with structured logging.
+
+## Prerequisites
+- Java 11 or higher
+- Maven 3.6 or higher
+
+## Quick Start
+1. Extract the bundle:
+   ```bash
+   tar xf ${BUNDLE_NAME}.tar.gz
+   ```
+
+2. Run the application:
+   ```bash
+   cd ${BUNDLE_NAME}
+   ./run.sh
+   ```
+
+## Usage
+The application supports the following command-line options:
+
+```bash
+Usage: shelldemo [-hV] [-n=<name>] [-v]
+A demo shell application using Picocli
+  -h, --help            Show this help message and exit
+  -n, --name=<name>     Name to greet (default: World)
+  -v, --verbose         Enable verbose output
+  -V, --version         Print version information and exit
+```
+
+### Running the Application
+The application can be run in two ways:
+
+1. Using the run script with logging configuration:
+   ```bash
+   ./run.sh [-l|--log-mode <mode>] [-- <application args>]
+   ```
+   The `--` separator is required when passing arguments to the Java application.
+
+2. Directly using Java (not recommended):
+   ```bash
+   java -jar bin/app.jar [options]
+   ```
+
+### Logging Modes
+The `run.sh` script supports different logging modes through the `-l` or `--log-mode` option:
+
+- `default`: Normal application logging with INFO level
+  ```bash
+  ./run.sh
+  ```
+
+- `debug`: Enables debug logging for detailed execution information
+  ```bash
+  ./run.sh -l debug
+  ```
+
+- `trace`: Enables trace logging with maximum verbosity
+  ```bash
+  ./run.sh -l trace
+  ```
+
+- `quiet`: Minimal logging, outputs only the greeting
+  ```bash
+  ./run.sh -l quiet
+  ```
+
+### Examples
+1. Basic usage (greets "World"):
+   ```bash
+   ./run.sh
+   ```
+
+2. Greet a specific person:
+   ```bash
+   ./run.sh -- -n "John Doe"
+   ```
+
+3. Run in debug mode with verbose output:
+   ```bash
+   ./run.sh -l debug -- -n "John Doe" --verbose
+   ```
+
+4. Get help information:
+   ```bash
+   ./run.sh -- --help
+   ```
+
+5. Quiet mode with custom name:
+   ```bash
+   ./run.sh -l quiet -- -n "John Doe"
+   ```
+
+6. Show version information:
+   ```bash
+   ./run.sh -- --version
+   ```
+
+## Logging
+- Logs are written to `logs/application.log`
+- Log level can be controlled via the `-l` option in `run.sh`
+- Log configuration can be modified in `app/logback.xml`
+
+## Project Structure
+```
+${BUNDLE_NAME}/
+├── app/
+│   ├── lib/              # Application libraries
+│   └── logback.xml       # Logging configuration
+├── bin/
+│   └── app.jar          # Application JAR
+├── logs/                # Log files directory
+└── run.sh              # Application runner script
+```
+
+## Troubleshooting
+1. If the application fails to start:
+   - Check Java version: `java -version`
+   - Verify log configuration in `app/logback.xml`
+   - Check permissions: `chmod +x run.sh`
+
+2. If logs are not appearing:
+   - Verify the logs directory exists and is writable
+   - Check logback configuration
+   - Try running in debug mode: `./run.sh -l debug`
+
+## License
+This project is licensed under the MIT License - see the LICENSE file for details. 

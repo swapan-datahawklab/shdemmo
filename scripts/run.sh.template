@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# Exit on error, undefined variables
+set -eu
+
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Default logging mode
+LOGGING_MODE="default"
+
+# Function to show usage
+usage() {
+    echo "Usage: $0 [-l|--log-mode <mode>] [-- <application args>]"
+    echo "Modes: default, debug, trace, quiet"
+    echo "Application args are passed directly to the Java application"
+    exit 1
+}
+
+# Create logs directory if it doesn't exist
+mkdir -p "$SCRIPT_DIR/logs"
+chmod 755 "$SCRIPT_DIR/logs"
+
+# Parse arguments
+APP_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -l|--log-mode)
+            if [[ $# -lt 2 ]]; then
+                echo "Error: Missing logging mode value" >&2
+                usage
+            fi
+            LOGGING_MODE="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            ;;
+        --)
+            shift
+            APP_ARGS=("$@")
+            break
+            ;;
+        *)
+            # If we haven't seen -- yet, treat unknown args as script args
+            if [[ "${#APP_ARGS[@]}" -eq 0 ]]; then
+                echo "Error: Unknown option $1" >&2
+                usage
+            fi
+            break
+            ;;
+    esac
+done
+
+# Configure Java options based on logging mode
+JAVA_OPTS=(
+    "-Dapp.log.dir=$SCRIPT_DIR/logs"
+    "-Dlogging.config=$SCRIPT_DIR/app/logback.xml"
+)
+
+case "$LOGGING_MODE" in
+    default)
+        JAVA_OPTS+=("-Dlogback.debug=false")
+        JAVA_OPTS+=("-Dlogback.statusListenerClass=ch.qos.logback.core.status.NopStatusListener")
+        ;;
+    debug)
+        JAVA_OPTS+=("-Dlogback.debug=true")
+        JAVA_OPTS+=("-Droot.level=DEBUG")
+        ;;
+    trace)
+        JAVA_OPTS+=("-Dlogback.debug=true")
+        JAVA_OPTS+=("-Droot.level=TRACE")
+        ;;
+    quiet)
+        JAVA_OPTS+=("-Dlogback.debug=false")
+        JAVA_OPTS+=("-Droot.level=OFF")
+        JAVA_OPTS+=("-Dapp.level=OFF")
+        JAVA_OPTS+=("-Dlogback.statusListenerClass=ch.qos.logback.core.status.NopStatusListener")
+        ;;
+    *)
+        echo "Error: Invalid logging mode: $LOGGING_MODE" >&2
+        usage
+        ;;
+esac
+
+# Run the application with logging enabled
+exec "$SCRIPT_DIR/runtime/bin/java" "${JAVA_OPTS[@]}" -jar "$SCRIPT_DIR/app/"*.jar "${APP_ARGS[@]}" 
