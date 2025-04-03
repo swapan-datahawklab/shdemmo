@@ -19,6 +19,9 @@
     <slf4j.version>2.0.12</slf4j.version>
     <logback.version>1.5.3</logback.version>
     <picocli.version>4.7.5</picocli.version>
+    <os.unix>true</os.unix>
+    <os.windows>true</os.windows>
+    <skip.bundle.creation>false</skip.bundle.creation>
   </properties>
 
   <dependencies>
@@ -147,6 +150,92 @@
           </execution>
         </executions>
       </plugin>
+
+      <!-- Execute platform-specific bundle creation scripts -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.2.0</version>
+        <executions>
+          <!-- Unix/Linux/macOS script -->
+          <execution>
+            <id>create-bundle-unix</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>bash</executable>
+              <workingDirectory>${project.basedir}</workingDirectory>
+              <environmentVariables>
+                <SKIP_MVN_BUILD>true</SKIP_MVN_BUILD>
+              </environmentVariables>
+              <arguments>
+                <argument>create-distribution/create-bundle.sh</argument>
+              </arguments>
+              <skip>${os.windows}</skip>
+              <successCodes>
+                <successCode>0</successCode>
+              </successCodes>
+            </configuration>
+          </execution>
+          <!-- Windows script -->
+          <execution>
+            <id>create-bundle-windows</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>powershell</executable>
+              <workingDirectory>${project.basedir}</workingDirectory>
+              <environmentVariables>
+                <SKIP_MVN_BUILD>true</SKIP_MVN_BUILD>
+              </environmentVariables>
+              <arguments>
+                <argument>-NoProfile</argument>
+                <argument>-NonInteractive</argument>
+                <argument>-ExecutionPolicy</argument>
+                <argument>Bypass</argument>
+                <argument>-File</argument>
+                <argument>create-distribution/create-bundle-windows.ps1</argument>
+              </arguments>
+              <skip>${os.unix}</skip>
+              <successCodes>
+                <successCode>0</successCode>
+              </successCodes>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
+
+  <!-- OS-specific profiles -->
+  <profiles>
+    <profile>
+      <id>unix</id>
+      <activation>
+        <os>
+          <family>unix</family>
+        </os>
+      </activation>
+      <properties>
+        <os.unix>true</os.unix>
+        <os.windows>false</os.windows>
+      </properties>
+    </profile>
+    <profile>
+      <id>windows</id>
+      <activation>
+        <os>
+          <family>windows</family>
+        </os>
+      </activation>
+      <properties>
+        <os.unix>false</os.unix>
+        <os.windows>true</os.windows>
+      </properties>
+    </profile>
+  </profiles>
 </project>

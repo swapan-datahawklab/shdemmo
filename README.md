@@ -1,8 +1,6 @@
 # Shell Demo Application
-A command-line application built with Java and Picocli that demonstrates modern CLI development practices.
 
-.\create-distribution\create-bundle-windows.ps1
-.\shdemmo-bundle-windows\run.bat
+A command-line application built with Java and Picocli that demonstrates modern CLI development practices.
 
 ## Features
 
@@ -10,7 +8,8 @@ A command-line application built with Java and Picocli that demonstrates modern 
 - Configurable greeting message
 - Verbose output mode
 - Structured logging using SLF4J and Logback
-- Built as a self-contained executable JAR
+- Custom runtime image creation using jlink
+- Platform-specific distribution bundles
 
 ## Prerequisites
 
@@ -19,25 +18,67 @@ A command-line application built with Java and Picocli that demonstrates modern 
 
 ## Building the Application
 
-To build the application, run:
+You have two build options depending on your needs:
+
+### Option 1: Basic Build (JAR only)
 
 ```bash
 mvn clean package
 ```
 
-This will create an executable JAR file in the `target` directory.
+This will:
+
+- Clean the project
+- Compile the code
+- Run tests
+- Create an executable JAR file in the `target` directory
+
+### Option 2: Complete Distribution Build
+
+```bash
+mvn clean verify
+```
+
+This will:
+
+- Do everything that `package` does
+- Create a custom runtime image using jlink
+- Generate platform-specific distribution bundles
+- Create distribution archives (tar.gz/zip)
 
 ## Running the Application
 
-After building, you can run the application using:
+### Running from JAR (Development)
+
+After building with `mvn package`, you can run the application using:
 
 ```bash
 java -jar target/shdemmo-1.0-SNAPSHOT.jar
 ```
 
+### Running from Distribution Bundle
+
+After building with `mvn verify`, extract the appropriate bundle for your platform:
+
+**Linux/macOS:**
+
+```bash
+tar xzf shdemmo-bundle-linux.tar.gz
+cd shdemmo-bundle-linux
+./run.sh
+```
+
+**Windows:**
+
+```powershell
+# Extract the ZIP file and navigate to the bundle directory
+cd shdemmo-bundle-windows
+.\run.bat
+```
+
 ### Command-line Options
 
-- `-n, --name <name>`: Specify the name to greet (default: "World")
+- `-n, --name <n>`: Specify the name to greet (default: "World")
 - `-v, --verbose`: Enable verbose output
 - `-h, --help`: Show help message and exit
 - `-V, --version`: Display version information
@@ -57,42 +98,26 @@ java -jar target/shdemmo-1.0-SNAPSHOT.jar --name Alice
 java -jar target/shdemmo-1.0-SNAPSHOT.jar -v
 ```
 
-## Running the Bundled Application
+## Logging Configuration
 
-After creating the bundle using `create-bundle.sh`, you can run the application using the provided `run.sh` script in the bundle directory:
+The application uses SLF4J with Logback for logging. Logs are written to the `logs` directory by default.
+
+### Log Directory Configuration
+
+You can customize the log directory location by setting the `app.log.dir` system property:
 
 ```bash
-# Basic usage (default logging mode)
-./run.sh
-
-# Run with debug logging
-./run.sh --log-mode debug
-# or
-./run.sh -l debug
-
-# Run with trace logging (most verbose)
-./run.sh --log-mode trace
-
-# Run with minimal logging
-./run.sh --log-mode quiet
-
-# Pass additional Java arguments after --
-./run.sh -- --name "Test User"
-
-# Combine logging mode with Java arguments
-./run.sh --log-mode debug -- --name "Test User"
-
-# Show help message
-./run.sh --help
+java -Dapp.log.dir=/path/to/logs -jar target/shdemmo-1.0-SNAPSHOT.jar
 ```
 
-The `run.sh` script supports different logging modes:
-- `default`: Normal application logging (INFO level)
-- `debug`: Enable debug logging (DEBUG level)
-- `trace`: Enable trace logging with logback debug output (TRACE level)
-- `quiet`: Minimal logging (WARN level)
+### Log Levels
 
-All logs are written to the `logs` directory within the bundle.
+- Default log level is INFO
+- Can be overridden using the `root.level` system property:
+
+```bash
+java -Droot.level=DEBUG -jar target/shdemmo-1.0-SNAPSHOT.jar
+```
 
 ## Project Structure
 
@@ -104,58 +129,24 @@ src/
 │   │       └── App.java
 │   └── resources/
 │       └── logback.xml
+├── create-distribution/
+│   ├── create-bundle.sh         # Unix bundle creation script
+│   ├── create-bundle-windows.ps1 # Windows bundle creation script
+│   ├── logback.xml.template     # Logging configuration template
+│   ├── run.sh.template         # Unix launcher template
+│   └── README.md.template      # Bundle README template
 ```
 
 ## Technical Details
 
-### Maven Shade Plugin Configuration
+### Distribution Bundle Creation
 
-The application uses the Maven Shade Plugin to create a self-contained executable JAR. Here's a detailed explanation of the transformers used in the build process:
+The project uses Maven profiles and the `maven-jlink-plugin` to create custom runtime images and distribution bundles. The process includes:
 
-#### 1. ManifestResourceTransformer
-
-```xml
-<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-    <mainClass>com.example.shelldemo.App</mainClass>
-</transformer>
-```
-
-- Sets the main class in the JAR's manifest file
-- Makes the JAR executable using `java -jar`
-- Merges manifest entries from dependencies
-
-#### 2. ServicesResourceTransformer
-
-```xml
-<transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
-```
-
-- Merges Service Provider Interface (SPI) configurations
-- Combines service provider files from META-INF/services/
-- Essential for Java's ServiceLoader mechanism
-- Ensures proper functionality of logging implementations
-
-#### 3. ApacheLicenseResourceTransformer
-
-```xml
-<transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer"/>
-```
-
-- Merges LICENSE files from Apache-licensed dependencies
-- Maintains legal compliance
-- Preserves license information in the final JAR
-
-#### 4. ApacheNoticeResourceTransformer
-
-```xml
-<transformer implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer">
-    <addHeader>false</addHeader>
-</transformer>
-```
-
-- Merges NOTICE files from Apache-licensed dependencies
-- Preserves attribution notices and acknowledgments
-- Maintains compliance with Apache License requirements
+1. Creating a minimal JRE using jlink
+2. Packaging application JAR and dependencies
+3. Generating platform-specific launch scripts
+4. Creating distribution archives
 
 ### Dependencies
 
@@ -166,10 +157,6 @@ The application uses the Maven Shade Plugin to create a self-contained executabl
 - **Mockito**: Mocking framework for tests
 
 ## Development
-
-### Logging
-
-The application uses SLF4J with Logback for logging. The logging configuration can be found in `src/main/resources/logback.xml`.
 
 ### Testing
 
