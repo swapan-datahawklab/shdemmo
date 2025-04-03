@@ -1,0 +1,29 @@
+@echo off
+setlocal EnableDelayedExpansion
+
+set "JAVA_OPTS="
+set "APP_ARGS="
+
+:parse_args
+if "%~1"=="" goto run
+if "%~1"=="-l" (
+    set "JAVA_OPTS=!JAVA_OPTS! -Dlogging.level.root=%~2"
+    shift
+    shift
+    goto parse_args
+)
+if "%~1"=="--" (
+    shift
+    :collect_app_args
+    if "%~1"=="" goto run
+    set "APP_ARGS=!APP_ARGS! %~1"
+    shift
+    goto collect_app_args
+)
+set "APP_ARGS=!APP_ARGS! %~1"
+shift
+goto parse_args
+
+:run
+java %JAVA_OPTS% -jar app.jar%APP_ARGS%
+exit /b %ERRORLEVEL% 

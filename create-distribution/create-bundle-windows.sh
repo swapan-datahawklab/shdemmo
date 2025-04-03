@@ -1,108 +1,154 @@
 #!/bin/bash
 
-# Exit on any error
-set -e
+# Exit on error, undefined variables, and pipe failures
+set -euo pipefail
 
-# Configuration
-APP_NAME="shdemmo"
-APP_VERSION="1.0-SNAPSHOT"
-BUNDLE_NAME="${APP_NAME}-bundle-windows"
-MAIN_CLASS="com.example.shelldemo.App"
+# Constants
+readonly SUCCESS=0
+readonly ERROR=1
+readonly BUNDLE_NAME="shdemmo-bundle-windows"
 
-# Convert JAVA_HOME to Unix-style path if it exists
-if [ -n "$JAVA_HOME" ]; then
-    JAVA_HOME=$(cygpath -u "$JAVA_HOME")
-fi
+# Colors for Git Bash on Windows
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly NC='\033[0m' # No Color
 
-# Ensure we're in the project root directory
-if [ ! -f "pom.xml" ]; then
-    echo "Error: Please run this script from the project root directory"
-    exit 1
-fi
+# Logging functions
+log_info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
 
-# Build the application
-echo "Building application..."
-./mvnw.cmd clean package
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
 
-# Create bundle directory structure
-echo "Creating bundle directory structure..."
-rm -rf "$BUNDLE_NAME"
-mkdir -p "$BUNDLE_NAME/app"
-mkdir -p "$BUNDLE_NAME/logs"
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1" >&2
+}
 
-# Create custom JRE for Windows
-echo "Creating custom JRE..."
-if [ -z "$JAVA_HOME" ]; then
-    echo "Error: JAVA_HOME environment variable is not set"
-    exit 1
-fi
+# Function to build the application with Maven
+build_application() {
+    log_info "Building application..."
+    
+    if ! mvn clean package -DskipTests; then
+        log_error "Failed to build application"
+        return $ERROR
+    fi
+    
+    log_info "Application built successfully"
+    return $SUCCESS
+}
 
-"$JAVA_HOME/bin/jlink" \
-    --add-modules java.base,java.logging,java.xml,java.sql,java.desktop,java.management,java.naming,jdk.unsupported \
-    --strip-debug \
-    --no-man-pages \
-    --no-header-files \
-    --compress=2 \
-    --output "$BUNDLE_NAME/runtime"
-
-# Copy application files
-echo "Copying application files..."
-cp "target/${APP_NAME}-${APP_VERSION}.jar" "$BUNDLE_NAME/app/"
-
-# Process and copy logback configuration
-echo "Copying logging configuration..."
-sed -e "s/\${LOG_DIRECTORY:-logs}/logs/g" \
-    -e "s/\${LOG_FILENAME:-application.log}/application.log/g" \
-    -e "s/\${LOG_LEVEL:-INFO}/INFO/g" \
-    -e "s/\${ROOT_LOG_LEVEL:-WARN}/WARN/g" \
-    "create-distribution/logback.xml.template" > "$BUNDLE_NAME/app/logback.xml"
-
-# Create Windows launcher (as .bat)
-echo "Creating Windows launcher..."
-cat > "$BUNDLE_NAME/run.bat" << 'EOF'
+# Function to create the bundle directory structure
+create_bundle_structure() {
+    local bundle_dir="$BUNDLE_NAME"
+    log_info "Creating bundle structure in $bundle_dir"
+    
+    # Remove existing bundle if it exists
+    if [[ -d "$bundle_dir" ]]; then
+        rm -rf "$bundle_dir"
+    fi
+    
+    # Create bundle directory
+    mkdir -p "$bundle_dir"
+    
+    # Copy JAR file
+    local jar_file
+    jar_file=$(find target -name "*.jar" -not -name "*-sources.jar" -not -name "*-javadoc.jar")
+    if [[ ! -f "$jar_file" ]]; then
+        log_error "JAR file not found in target directory"
+        return $ERROR
+    fi
+    
+    cp "$jar_file" "$bundle_dir/app.jar"
+    
+    # Create Windows batch file for running the application
+    cat > "$bundle_dir/run.bat" << 'EOF'
 @echo off
-setlocal
+setlocal EnableDelayedExpansion
 
-REM Set logging mode from command line argument
-set LOG_MODE=default
-if not "%~1"=="" (
-    if "%~1"=="-l" (
-        set LOG_MODE=%~2
-        shift
-        shift
-    )
+set "JAVA_OPTS="
+set "APP_ARGS="
+
+:parse_args
+if "%~1"=="" goto run
+if "%~1"=="-l" (
+    set "JAVA_OPTS=!JAVA_OPTS! -Dlogging.level.root=%~2"
+    shift
+    shift
+    goto parse_args
 )
+if "%~1"=="--" (
+    shift
+    :collect_app_args
+    if "%~1"=="" goto run
+    set "APP_ARGS=!APP_ARGS! %~1"
+    shift
+    goto collect_app_args
+)
+set "APP_ARGS=!APP_ARGS! %~1"
+shift
+goto parse_args
 
-REM Set the classpath to include the app directory for logback config
-set "APP_DIR=%~dp0app"
-set "CLASSPATH=%APP_DIR%\*;%APP_DIR%"
-
-REM Run the application with the custom runtime
-"%~dp0runtime\bin\java" ^
-    -Dlogback.configurationFile="%APP_DIR%\logback.xml" ^
-    -Dapp.level=INFO ^
-    -Droot.level=WARN ^
-    -cp "%CLASSPATH%" ^
-    com.example.shelldemo.App %*
-
-endlocal
+:run
+java %JAVA_OPTS% -jar app.jar%APP_ARGS%
+exit /b %ERRORLEVEL%
 EOF
+    
+    # Make the batch file executable
+    chmod +x "$bundle_dir/run.bat"
+    
+    log_info "Bundle structure created successfully"
+    return $SUCCESS
+}
 
-# Create a zip archive (more common on Windows)
-echo "Creating archive..."
-if command -v zip >/dev/null 2>&1; then
-    zip -r "${BUNDLE_NAME}.zip" "$BUNDLE_NAME"
-else
-    echo "Warning: zip command not found, falling back to tar.gz"
-    tar -czf "${BUNDLE_NAME}.tar.gz" "$BUNDLE_NAME"
-fi
+# Function to create the final bundle archive
+create_bundle_archive() {
+    log_info "Creating bundle archive..."
+    
+    # Create zip archive for Windows
+    if ! zip -r "${BUNDLE_NAME}.zip" "$BUNDLE_NAME"; then
+        log_error "Failed to create zip archive"
+        return $ERROR
+    fi
+    
+    log_info "Bundle archive created successfully: ${BUNDLE_NAME}.zip"
+    return $SUCCESS
+}
 
-echo "Bundle created successfully!"
-if [ -f "${BUNDLE_NAME}.zip" ]; then
-    echo "You can find the bundle in: ${BUNDLE_NAME}.zip"
-else
-    echo "You can find the bundle in: ${BUNDLE_NAME}.tar.gz"
-fi
-echo "To use the application:"
-echo "1. Extract the archive"
-echo "2. Run the application: ${BUNDLE_NAME}\\run.bat" 
+# Cleanup function
+cleanup() {
+    local exit_code=$?
+    if [[ -d "$BUNDLE_NAME" ]]; then
+        log_info "Cleaning up bundle directory..."
+        rm -rf "$BUNDLE_NAME"
+    fi
+    exit $exit_code
+}
+
+# Register cleanup function
+trap cleanup EXIT
+
+# Main function
+main() {
+    log_info "Starting bundle creation for Windows..."
+    
+    if ! build_application; then
+        return $ERROR
+    fi
+    
+    if ! create_bundle_structure; then
+        return $ERROR
+    fi
+    
+    if ! create_bundle_archive; then
+        return $ERROR
+    fi
+    
+    log_info "Bundle creation completed successfully"
+    return $SUCCESS
+}
+
+# Run main function
+main "$@" 
