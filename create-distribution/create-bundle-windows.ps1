@@ -109,7 +109,7 @@ function New-CustomJRE {
             "--strip-debug",
             "--no-man-pages",
             "--no-header-files",
-            "--compress=2",
+            "--compress=zip-6",
             "--output", "$BUNDLE_NAME/runtime"
         )
 
