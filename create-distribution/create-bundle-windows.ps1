@@ -227,7 +227,7 @@ if "%LOG_MODE%"=="debug" (
 set "SCRIPT_DIR=%~dp0"
 set "JAVA_OPTS=%JAVA_OPTS% -Dapp.log.dir=%SCRIPT_DIR%logs -Dlogging.config=%SCRIPT_DIR%app\logback.xml"
 
-"%SCRIPT_DIR%runtime\bin\java" %JAVA_OPTS% -jar "%SCRIPT_DIR%app\*.jar" %APP_ARGS%
+"%SCRIPT_DIR%runtime\bin\java" %JAVA_OPTS% -cp "%SCRIPT_DIR%app\*.jar" ${MAIN_CLASS} %APP_ARGS%
 exit /b %ERRORLEVEL%
 '@
 
