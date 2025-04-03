@@ -5,7 +5,8 @@
     Creates a Windows bundle for the shdemmo application.
 
 .DESCRIPTION
-    This script builds the application using Maven and creates a distributable Windows bundle.
+    This script builds the application using Maven and creates a distributable Windows bundle
+    containing a custom JRE, the application JAR, and necessary configuration files.
 
 .NOTES
     If you get an execution policy error, you have several options:
@@ -28,7 +29,10 @@
 #>
 
 # Constants
-$BUNDLE_NAME = "shdemmo-bundle-windows"
+$APP_NAME = "shdemmo"
+$APP_VERSION = "1.0-SNAPSHOT"
+$BUNDLE_NAME = "$APP_NAME-bundle-windows"
+$MAIN_CLASS = "com.example.shelldemo.App"
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Colors for PowerShell output
@@ -55,14 +59,23 @@ function Write-LogError {
     Write-Host "[ERROR] $Message" -ForegroundColor $Colors.Red
 }
 
+# Function to check if we're in the project root
+function Test-ProjectRoot {
+    if (-not (Test-Path "pom.xml")) {
+        Write-LogError "Error: Please run this script from the project root directory"
+        return $false
+    }
+    return $true
+}
+
 # Function to build the application with Maven
 function Build-Application {
-    Write-LogInfo "Building application..."
+    Write-LogInfo "Building application with Maven..."
     
     try {
-        mvn clean package -DskipTests
+        mvn clean package
         if ($LASTEXITCODE -ne 0) {
-            Write-LogError "Failed to build application"
+            Write-LogError "Maven build failed"
             return $false
         }
     }
@@ -75,9 +88,49 @@ function Build-Application {
     return $true
 }
 
+# Function to create a custom JRE
+function New-CustomJRE {
+    Write-LogInfo "Creating custom JRE..."
+    
+    try {
+        $jlinkModules = @(
+            "java.base",
+            "java.logging",
+            "java.xml",
+            "java.sql",
+            "java.desktop",
+            "java.management",
+            "java.naming",
+            "jdk.unsupported"
+        )
+
+        $jlinkArgs = @(
+            "--add-modules", ($jlinkModules -join ","),
+            "--strip-debug",
+            "--no-man-pages",
+            "--no-header-files",
+            "--compress=2",
+            "--output", "$BUNDLE_NAME/runtime"
+        )
+
+        jlink $jlinkArgs
+        if ($LASTEXITCODE -ne 0) {
+            Write-LogError "Failed to create custom JRE"
+            return $false
+        }
+    }
+    catch {
+        Write-LogError "Exception during JRE creation: $_"
+        return $false
+    }
+    
+    Write-LogInfo "Custom JRE created successfully"
+    return $true
+}
+
 # Function to create the bundle directory structure
 function New-BundleStructure {
-    Write-LogInfo "Creating bundle structure in $BUNDLE_NAME"
+    Write-LogInfo "Creating bundle directory structure..."
     
     try {
         # Remove existing bundle if it exists
@@ -85,29 +138,9 @@ function New-BundleStructure {
             Remove-Item -Path $BUNDLE_NAME -Recurse -Force
         }
         
-        # Create bundle directory
-        New-Item -ItemType Directory -Path $BUNDLE_NAME | Out-Null
-        
-        # Find and copy JAR file
-        $jarFile = Get-ChildItem -Path "target" -Filter "*.jar" | 
-                  Where-Object { $_.Name -notmatch "(sources|javadoc).jar$" } |
-                  Select-Object -First 1
-        
-        if (-not $jarFile) {
-            Write-LogError "JAR file not found in target directory"
-            return $false
-        }
-        
-        Copy-Item $jarFile.FullName -Destination "$BUNDLE_NAME\app.jar"
-        
-        # Copy and process run.bat template
-        $templatePath = Join-Path $SCRIPT_DIR "run.bat.template"
-        if (-not (Test-Path $templatePath)) {
-            Write-LogError "run.bat.template not found at: $templatePath"
-            return $false
-        }
-        
-        Copy-Item $templatePath -Destination "$BUNDLE_NAME\run.bat"
+        # Create bundle directories
+        New-Item -ItemType Directory -Path "$BUNDLE_NAME/app" -Force | Out-Null
+        New-Item -ItemType Directory -Path "$BUNDLE_NAME/logs" -Force | Out-Null
         
         Write-LogInfo "Bundle structure created successfully"
         return $true
@@ -118,7 +151,117 @@ function New-BundleStructure {
     }
 }
 
-# Function to create the final bundle archive
+# Function to copy application files
+function Copy-ApplicationFiles {
+    Write-LogInfo "Copying application files..."
+    
+    try {
+        # Copy JAR file
+        Copy-Item "target/$APP_NAME-$APP_VERSION.jar" "$BUNDLE_NAME/app/"
+        
+        # Process and copy logback configuration
+        $logbackTemplate = Get-Content "$SCRIPT_DIR/logback.xml.template" -Raw
+        $logbackContent = $logbackTemplate -replace '\${LOG_DIRECTORY:-logs}', 'logs' `
+                                        -replace '\${LOG_FILENAME:-application.log}', 'application.log' `
+                                        -replace '\${LOG_LEVEL:-INFO}', 'INFO' `
+                                        -replace '\${ROOT_LOG_LEVEL:-WARN}', 'WARN'
+        Set-Content -Path "$BUNDLE_NAME/app/logback.xml" -Value $logbackContent
+        
+        Write-LogInfo "Application files copied successfully"
+        return $true
+    }
+    catch {
+        Write-LogError "Failed to copy application files: $_"
+        return $false
+    }
+}
+
+# Function to create the Windows batch file
+function New-WindowsBatchFile {
+    Write-LogInfo "Creating Windows batch file..."
+    
+    try {
+        $batchContent = @'
+@echo off
+setlocal EnableDelayedExpansion
+
+set "JAVA_OPTS="
+set "APP_ARGS="
+set "LOG_MODE=default"
+
+:parse_args
+if "%~1"=="" goto run
+if "%~1"=="-l" (
+    set "LOG_MODE=%~2"
+    shift
+    shift
+    goto parse_args
+)
+if "%~1"=="--log-mode" (
+    set "LOG_MODE=%~2"
+    shift
+    shift
+    goto parse_args
+)
+if "%~1"=="--" (
+    shift
+    :collect_app_args
+    if "%~1"=="" goto run
+    set "APP_ARGS=!APP_ARGS! %~1"
+    shift
+    goto collect_app_args
+)
+set "APP_ARGS=!APP_ARGS! %~1"
+shift
+goto parse_args
+
+:run
+if "%LOG_MODE%"=="debug" (
+    set "JAVA_OPTS=-Dlogging.level.root=DEBUG"
+) else if "%LOG_MODE%"=="trace" (
+    set "JAVA_OPTS=-Dlogging.level.root=TRACE"
+) else if "%LOG_MODE%"=="quiet" (
+    set "JAVA_OPTS=-Dlogging.level.root=WARN"
+)
+
+set "SCRIPT_DIR=%~dp0"
+set "JAVA_OPTS=%JAVA_OPTS% -Dapp.log.dir=%SCRIPT_DIR%logs -Dlogging.config=%SCRIPT_DIR%app\logback.xml"
+
+"%SCRIPT_DIR%runtime\bin\java" %JAVA_OPTS% -jar "%SCRIPT_DIR%app\*.jar" %APP_ARGS%
+exit /b %ERRORLEVEL%
+'@
+
+        Set-Content -Path "$BUNDLE_NAME/run.bat" -Value $batchContent
+        
+        Write-LogInfo "Windows batch file created successfully"
+        return $true
+    }
+    catch {
+        Write-LogError "Failed to create Windows batch file: $_"
+        return $false
+    }
+}
+
+# Function to create the README file
+function New-ReadmeFile {
+    Write-LogInfo "Creating README file..."
+    
+    try {
+        $readmeTemplate = Get-Content "$SCRIPT_DIR/README.md.template" -Raw
+        $readmeContent = $readmeTemplate -replace '\${APPLICATION_NAME}', $APP_NAME `
+                                       -replace '\${BUNDLE_NAME}', $BUNDLE_NAME
+        Set-Content -Path "$BUNDLE_NAME/README.md" -Value $readmeContent
+        
+        Write-LogInfo "README file created successfully"
+        return $true
+    }
+    catch {
+        Write-LogError "Failed to create README file: $_"
+        return $false
+    }
+}
+
+# Function to create the bundle archive
 function New-BundleArchive {
     Write-LogInfo "Creating bundle archive..."
     
@@ -128,7 +271,7 @@ function New-BundleArchive {
         return $true
     }
     catch {
-        Write-LogError "Failed to create zip archive: $_"
+        Write-LogError "Failed to create bundle archive: $_"
         return $false
     }
 }
@@ -145,20 +288,32 @@ function Invoke-Cleanup {
 function Main {
     Write-LogInfo "Starting bundle creation for Windows..."
     
+    if (-not (Test-ProjectRoot)) {
+        return 1
+    }
+    
     try {
-        if (-not (Build-Application)) {
-            throw "Build failed"
-        }
-        
-        if (-not (New-BundleStructure)) {
-            throw "Bundle structure creation failed"
-        }
-        
-        if (-not (New-BundleArchive)) {
-            throw "Bundle archive creation failed"
+        $steps = @(
+            @{ Name = "Build Application"; Function = { Build-Application } },
+            @{ Name = "Create Bundle Structure"; Function = { New-BundleStructure } },
+            @{ Name = "Create Custom JRE"; Function = { New-CustomJRE } },
+            @{ Name = "Copy Application Files"; Function = { Copy-ApplicationFiles } },
+            @{ Name = "Create Windows Batch File"; Function = { New-WindowsBatchFile } },
+            @{ Name = "Create README File"; Function = { New-ReadmeFile } },
+            @{ Name = "Create Bundle Archive"; Function = { New-BundleArchive } }
+        )
+
+        foreach ($step in $steps) {
+            if (-not (& $step.Function)) {
+                throw "Failed at step: $($step.Name)"
+            }
         }
         
         Write-LogInfo "Bundle creation completed successfully"
+        Write-LogInfo "You can find the bundle in: $BUNDLE_NAME.zip"
+        Write-LogInfo "To use the application:"
+        Write-LogInfo "1. Extract the archive"
+        Write-LogInfo "2. Run the application: $BUNDLE_NAME\run.bat"
         return 0
     }
     catch {
