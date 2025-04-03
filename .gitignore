@@ -101,7 +101,7 @@ htmlcov/
 nohup.out
 
 # Project specific
-shdemmo-bundle/
+shdemmo-bundle-linux/
 create-distribution/run.sh
 create-distribution/logback.xml
 

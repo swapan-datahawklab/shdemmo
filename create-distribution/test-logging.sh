@@ -86,24 +86,24 @@ build_application() {
 create_bundle() {
     log_info "Creating application bundle..."
     
-    if [[ ! -f "create-bundle.sh" ]]; then
+    if [[ ! -f "create-distribution/create-bundle.sh" ]]; then
         log_error "create-bundle.sh script not found"
         return $ERROR
     fi
 
-    if ! chmod +x create-bundle.sh; then
+    if ! chmod +x create-distribution/create-bundle.sh; then
         log_error "Failed to make create-bundle.sh executable"
         return $ERROR
     fi
 
-    if ! ./create-bundle.sh > bundle.log 2>&1; then
+    if ! ./create-distribution/create-bundle.sh > bundle.log 2>&1; then
         log_error "Bundle creation failed. Check bundle.log for details."
         cat bundle.log >&2
         rm bundle.log
         return $ERROR
     fi
 
-    if [[ ! -f "shdemmo-bundle.tar.gz" ]]; then
+    if [[ ! -f "shdemmo-bundle-linux.tar.gz" ]]; then
         log_error "Bundle file not created"
         rm bundle.log
         return $ERROR
@@ -132,7 +132,7 @@ verify_test() {
     local start_time=$(date +%s.%N)
     
     # Change to the bundle directory to run the test
-    if ! pushd shdemmo-bundle > /dev/null; then
+    if ! pushd shdemmo-bundle-linux > /dev/null; then
         log_error "Failed to change to bundle directory"
         return 1
     fi
@@ -242,27 +242,11 @@ trap cleanup EXIT
 main() {
     local exit_code=0
 
-    log_info "=== Starting Logging Test Script ==="
-
-    # Step 1: Copy run.sh and logback.xml from bundle to source
-    log_info "Copying configuration files..."
-    if [[ ! -f "scripts/run.sh.template" ]]; then
-        log_error "run.sh.template not found in scripts directory"
-        return 1
-    fi
-    cp scripts/run.sh.template run.sh || {
-        log_error "Failed to copy run.sh.template"
-        return 1
-    }
-    chmod +x run.sh || {
-        log_error "Failed to make run.sh executable"
-        return 1
-    }
-
+    
     # Step 2: Clean up old bundle
     log_info "Cleaning up old bundle..."
-    rm -rf shdemmo-bundle
-    rm -f shdemmo-bundle.tar.gz
+    rm -rf shdemmo-bundle-linux
+    rm -f shdemmo-bundle-linux.tar.gz
 
     # Step 3: Build application
     if ! build_application; then
@@ -276,14 +260,14 @@ main() {
 
     # Step 5: Extract new bundle
     log_info "Extracting bundle..."
-    if ! tar xf shdemmo-bundle.tar.gz; then
+    if ! tar xf shdemmo-bundle-linux.tar.gz; then
         log_error "Bundle extraction failed"
         return 1
     fi
 
     # Make run.sh executable
     log_info "Making run.sh executable..."
-    if ! chmod +x shdemmo-bundle/run.sh; then
+    if ! chmod +x shdemmo-bundle-linux/run.sh; then
         log_error "Failed to make run.sh executable"
         return 1
     fi
@@ -292,14 +276,14 @@ main() {
 
     # Array of test cases with expected exit codes
     declare -A tests=(
-        ["Default Mode"]='./shdemmo-bundle/run.sh -- |Starting application.*Hello, World!.*Application completed with exit code: 0|0'
-        ["Debug Mode"]='./shdemmo-bundle/run.sh -l debug -- |Starting application.*Generated greeting: Hello, World!.*Application completed with exit code: 0|0'
-        ["Debug Mode (Short Form)"]='./shdemmo-bundle/run.sh -l debug -- |Starting application.*Generated greeting: Hello, World!.*Application completed with exit code: 0|0'
-        ["Trace Mode"]='./shdemmo-bundle/run.sh -l trace -- |Starting application.*Generated greeting: Hello, World!.*Application completed with exit code: 0|0'
-        ["Quiet Mode"]='./shdemmo-bundle/run.sh -l quiet -- |Hello, World!|0'
-        ["Name Argument"]='./shdemmo-bundle/run.sh -- -n "Test User"|Starting application.*Hello, Test User!.*Application completed with exit code: 0|0'
-        ["Debug with Name"]='./shdemmo-bundle/run.sh -l debug -- -n "Test User" --verbose|Starting application.*Generated greeting: Hello, Test User!.*Application completed with exit code: 0|0'
-        ["Help"]='./shdemmo-bundle/run.sh --help|Usage: ./run.sh|0'
+        ["Default Mode"]='./shdemmo-bundle-linux/run.sh -- |Starting application.*Hello, World!.*Application completed with exit code: 0|0'
+        ["Debug Mode"]='./shdemmo-bundle-linux/run.sh -l debug -- |Starting application.*Generated greeting: Hello, World!.*Application completed with exit code: 0|0'
+        ["Debug Mode (Short Form)"]='./shdemmo-bundle-linux/run.sh -l debug -- |Starting application.*Generated greeting: Hello, World!.*Application completed with exit code: 0|0'
+        ["Trace Mode"]='./shdemmo-bundle-linux/run.sh -l trace -- |Starting application.*Generated greeting: Hello, World!.*Application completed with exit code: 0|0'
+        ["Quiet Mode"]='./shdemmo-bundle-linux/run.sh -l quiet -- |Hello, World!|0'
+        ["Name Argument"]='./shdemmo-bundle-linux/run.sh -- -n "Test User"|Starting application.*Hello, Test User!.*Application completed with exit code: 0|0'
+        ["Debug with Name"]='./shdemmo-bundle-linux/run.sh -l debug -- -n "Test User" --verbose|Starting application.*Generated greeting: Hello, Test User!.*Application completed with exit code: 0|0'
+        ["Help"]='./shdemmo-bundle-linux/run.sh --help|Usage: ./run.sh|0'
     )
 
     # Create an array of test names to ensure consistent order
