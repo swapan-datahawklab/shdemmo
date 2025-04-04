@@ -9,6 +9,7 @@
   <version>1.0-SNAPSHOT</version>
 
   <name>shdemmo</name>
+  <description>Oracle Database Utilities with Spring Shell Interface</description>
   <!-- FIXME change it to the project's website -->
   <url>http://www.example.com</url>
 
@@ -16,15 +17,37 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.source>21</maven.compiler.source>
     <maven.compiler.target>21</maven.compiler.target>
+    
+    <!-- Dependency versions -->
     <slf4j.version>2.0.12</slf4j.version>
     <logback.version>1.5.3</logback.version>
     <picocli.version>4.7.5</picocli.version>
+    <oracle.version>23.3.0.23.09</oracle.version>
+    <spring.shell.version>3.1.6</spring.shell.version>
+    <junit.version>5.10.2</junit.version>
+    <mockito.version>5.11.0</mockito.version>
+    
+    <!-- Plugin versions -->
+    <maven.compiler.plugin.version>3.8.0</maven.compiler.plugin.version>
+    <maven.surefire.plugin.version>2.22.1</maven.surefire.plugin.version>
+    <maven.jar.plugin.version>3.0.2</maven.jar.plugin.version>
+    <maven.shade.plugin.version>3.5.1</maven.shade.plugin.version>
+    <maven.exec.plugin.version>3.2.0</maven.exec.plugin.version>
+    
+    <!-- OS properties -->
     <os.unix>true</os.unix>
     <os.windows>true</os.windows>
     <skip.bundle.creation>false</skip.bundle.creation>
   </properties>
 
   <dependencies>
+    <!-- Oracle JDBC Driver -->
+    <dependency>
+      <groupId>com.oracle.database.jdbc</groupId>
+      <artifactId>ojdbc11</artifactId>
+      <version>${oracle.version}</version>
+    </dependency>
+
     <!-- Logging -->
     <dependency>
       <groupId>org.slf4j</groupId>
@@ -41,13 +64,19 @@
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
-      <version>5.10.2</version>
+      <version>${junit.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>
-      <version>5.11.0</version>
+      <version>${mockito.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-junit-jupiter</artifactId>
+      <version>${mockito.version}</version>
       <scope>test</scope>
     </dependency>
 
@@ -56,20 +85,6 @@
       <groupId>info.picocli</groupId>
       <artifactId>picocli</artifactId>
       <version>${picocli.version}</version>
-    </dependency>
-
-    <!-- Spring Shell -->
-    <dependency>
-      <groupId>org.springframework.shell</groupId>
-      <artifactId>spring-shell-starter</artifactId>
-      <version>3.1.6</version>
-    </dependency>
-    
-    <!-- Spring Boot -->
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter</artifactId>
-      <version>3.1.6</version>
     </dependency>
   </dependencies>
 
@@ -80,7 +95,7 @@
         <!-- Compiles Java source code and processes annotations -->
         <plugin>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.8.0</version>
+          <version>${maven.compiler.plugin.version}</version>
           <configuration>
             <annotationProcessorPaths>
               <path>
@@ -98,13 +113,20 @@
         <!-- Runs unit tests -->
         <plugin>
           <artifactId>maven-surefire-plugin</artifactId>
-          <version>2.22.1</version>
+          <version>${maven.surefire.plugin.version}</version>
+          <configuration>
+            <argLine>
+              --add-opens java.base/java.lang=ALL-UNNAMED
+              --add-opens java.base/java.util=ALL-UNNAMED
+              --add-opens java.base/java.time=ALL-UNNAMED
+            </argLine>
+          </configuration>
         </plugin>
         
         <!-- Creates the JAR file -->
         <plugin>
           <artifactId>maven-jar-plugin</artifactId>
-          <version>3.0.2</version>
+          <version>${maven.jar.plugin.version}</version>
         </plugin>
         
       </plugins>
@@ -115,7 +137,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
-        <version>3.5.1</version>
+        <version>${maven.shade.plugin.version}</version>
         <executions>
           <execution>
             <phase>package</phase>
@@ -132,6 +154,15 @@
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer"/>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer">
                     <addHeader>false</addHeader>
+                </transformer>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                  <resource>META-INF/spring.handlers</resource>
+                </transformer>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                  <resource>META-INF/spring.schemas</resource>
+                </transformer>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                  <resource>META-INF/spring.factories</resource>
                 </transformer>
               </transformers>
               <filters>
@@ -169,7 +200,7 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
-        <version>3.2.0</version>
+        <version>${maven.exec.plugin.version}</version>
         <executions>
           <!-- Unix/Linux/macOS script -->
           <execution>
