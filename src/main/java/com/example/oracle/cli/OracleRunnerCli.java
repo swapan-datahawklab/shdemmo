@@ -63,6 +63,20 @@ public class OracleRunnerCli implements Callable<Integer> {
     @Option(names = "--io", description = "Input/Output parameters (name:type:value)")
     private String[] inOutParams;
 
+    @Option(names = "--print-output", description = "Print output from procedure", defaultValue = "true")
+    private boolean printOutput;
+
+    private OracleScriptRunner scriptRunner;
+    private OracleStoredProcRunner procRunner;
+
+    public void setScriptRunner(OracleScriptRunner scriptRunner) {
+        this.scriptRunner = scriptRunner;
+    }
+
+    public void setProcRunner(OracleStoredProcRunner procRunner) {
+        this.procRunner = procRunner;
+    }
+
     public static void main(String[] args) {
         int exitCode = new CommandLine(new OracleRunnerCli()).execute(args);
         System.exit(exitCode);
@@ -77,34 +91,85 @@ public class OracleRunnerCli implements Callable<Integer> {
         )) {
             switch (sqlType.toLowerCase()) {
                 case "script":
-                    runScript(conn);
-                    break;
+                    return runScript(conn);
                 case "proc":
-                    runProcedure(conn);
-                    break;
+                    return runProcedure(conn);
                 default:
                     System.err.println("Invalid SQL type. Must be 'script' or 'proc'");
                     return 1;
             }
-            return 0;
         }
     }
 
-    private void runScript(Connection conn) throws Exception {
-        File scriptFile = new File(target);
-        if (!scriptFile.exists()) {
-            throw new IllegalArgumentException("Script file not found: " + target);
+    private Integer runScript(Connection conn) throws Exception {
+        if (scriptRunner == null) {
+            scriptRunner = new OracleScriptRunner(conn);
         }
 
-        try (OracleScriptRunner runner = new OracleScriptRunner(conn)) {
-            runner.setStopOnError(stopOnError)
-                  .setAutoCommit(autoCommit)
-                  .setPrintStatements(printStatements)
-                  .runScript(scriptFile);
+        scriptRunner.setStopOnError(stopOnError)
+                      .setAutoCommit(autoCommit)
+                      .setPrintStatements(printStatements);
+
+        scriptRunner.runScript(new File(target));
+        return 0;
+    }
+
+    private Integer runProcedure(Connection conn) throws SQLException {
+        if (procRunner == null) {
+            procRunner = new OracleStoredProcRunner(conn);
+        }
+
+        if (isFunction) {
+            return runFunction(conn);
+        } else {
+            return runStoredProcedure(conn);
         }
     }
 
-    private void runProcedure(Connection conn) throws SQLException {
+    private Integer runFunction(Connection conn) throws SQLException {
+        if (returnType == null) {
+            System.err.println("Return type must be specified for functions");
+            return 1;
+        }
+
+        int sqlType = getSqlType(returnType);
+        if (sqlType == -1) {
+            System.err.println("Invalid return type: " + returnType);
+            return 1;
+        }
+
+        List<ProcedureParam> params = new ArrayList<>();
+
+        // Add input parameters
+        if (inParams != null) {
+            for (String param : inParams) {
+                String[] parts = param.split(":");
+                params.add(ProcedureParam.in(parts[0], sqlType, parseValue(parts[2])));
+            }
+        }
+
+        // Add output parameters
+        if (outParams != null) {
+            for (String param : outParams) {
+                String[] parts = param.split(":");
+                params.add(ProcedureParam.out(parts[0], sqlType));
+            }
+        }
+
+        // Add input/output parameters
+        if (inOutParams != null) {
+            for (String param : inOutParams) {
+                String[] parts = param.split(":");
+                params.add(ProcedureParam.inOut(parts[0], sqlType, parseValue(parts[2])));
+            }
+        }
+
+        Object result = procRunner.executeFunction(target, sqlType, params.toArray(new ProcedureParam[0]));
+        System.out.println("Function result: " + result);
+        return 0;
+    }
+
+    private Integer runStoredProcedure(Connection conn) throws SQLException {
         List<ProcedureParam> params = new ArrayList<>();
 
         // Add input parameters
@@ -131,18 +196,8 @@ public class OracleRunnerCli implements Callable<Integer> {
             }
         }
 
-        try (OracleStoredProcRunner runner = new OracleStoredProcRunner(conn, true)) {
-            if (isFunction) {
-                if (returnType == null) {
-                    throw new IllegalArgumentException("Return type must be specified for functions");
-                }
-                Object result = runner.executeFunction(target, getSqlType(returnType), 
-                    params.toArray(new ProcedureParam[0]));
-                System.out.printf("Function returned: %s%n", result);
-            } else {
-                runner.executeProcedure(target, params.toArray(new ProcedureParam[0]));
-            }
-        }
+        procRunner.executeProcedure(target, params.toArray(new ProcedureParam[0]));
+        return 0;
     }
 
     private int getSqlType(String type) {
@@ -158,7 +213,7 @@ public class OracleRunnerCli implements Callable<Integer> {
             case "TIMESTAMP":
                 return Types.TIMESTAMP;
             default:
-                throw new IllegalArgumentException("Unsupported SQL type: " + type);
+                return -1;
         }
     }
 
