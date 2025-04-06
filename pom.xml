@@ -26,6 +26,7 @@
     <spring.shell.version>3.1.6</spring.shell.version>
     <junit.version>5.10.2</junit.version>
     <mockito.version>5.11.0</mockito.version>
+    <hikaricp.version>5.0.1</hikaricp.version>
     
     <!-- Plugin versions -->
     <maven.compiler.plugin.version>3.8.0</maven.compiler.plugin.version>
@@ -80,6 +81,13 @@
       <scope>test</scope>
     </dependency>
 
+    <!-- Connection Pooling -->
+    <dependency>
+      <groupId>com.zaxxer</groupId>
+      <artifactId>HikariCP</artifactId>
+      <version>${hikaricp.version}</version>
+    </dependency>
+
     <!-- Command Line Interface -->
     <dependency>
       <groupId>info.picocli</groupId>
@@ -116,9 +124,14 @@
           <version>${maven.surefire.plugin.version}</version>
           <configuration>
             <argLine>
+              <!-- Required for Mockito to access private fields and methods during testing -->
               --add-opens java.base/java.lang=ALL-UNNAMED
+              <!-- Required for HikariCP to access collection internals and for testing collections -->
               --add-opens java.base/java.util=ALL-UNNAMED
+              <!-- Required for testing temporal classes and date/time operations -->
               --add-opens java.base/java.time=ALL-UNNAMED
+              <!-- Enable dynamic agent loading for Mockito and ByteBuddy -->
+              -XX:+EnableDynamicAgentLoading
             </argLine>
           </configuration>
         </plugin>
@@ -190,7 +203,7 @@
                   </includes>
                 </filter>
               </filters>
-              <minimizeJar>false</minimizeJar>
+              <minimizeJar>true</minimizeJar>
             </configuration>
           </execution>
         </executions>

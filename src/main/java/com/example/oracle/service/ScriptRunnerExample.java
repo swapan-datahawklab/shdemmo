@@ -44,16 +44,11 @@ public class ScriptRunnerExample {
         }
 
         logger.info("Connecting to database at {}", host);
-        try (Connection conn = DriverManager.getConnection(url, username, password);
-             OracleScriptRunner runner = new OracleScriptRunner(conn)) {
+        try (Connection conn = DriverManager.getConnection(url, username, password)) {
+            OracleScriptRunner runner = new OracleScriptRunner(host, username, password, stopOnError, autoCommit, printStatements);
             
-            // Configure the runner
-            runner.setStopOnError(stopOnError)
-                  .setAutoCommit(autoCommit)
-                  .setPrintStatements(printStatements);
-
             logger.info("Executing script: {}", scriptPath);
-            runner.runScript(scriptFile);
+            runner.runScript(scriptFile.getAbsolutePath());
             logger.info("Script execution completed successfully");
 
         } catch (SQLException e) {

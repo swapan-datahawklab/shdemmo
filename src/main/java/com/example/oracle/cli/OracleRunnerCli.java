@@ -103,20 +103,17 @@ public class OracleRunnerCli implements Callable<Integer> {
 
     private Integer runScript(Connection conn) throws Exception {
         if (scriptRunner == null) {
-            scriptRunner = new OracleScriptRunner(conn);
+            scriptRunner = new OracleScriptRunner(host, username, password, stopOnError, autoCommit, printStatements);
         }
 
-        scriptRunner.setStopOnError(stopOnError)
-                      .setAutoCommit(autoCommit)
-                      .setPrintStatements(printStatements);
-
-        scriptRunner.runScript(new File(target));
+        scriptRunner.runScript(new File(target).getAbsolutePath());
         return 0;
     }
 
-    private Integer runProcedure(Connection conn) throws SQLException {
+    private Integer runProcedure(Connection conn) throws SQLException, Exception {
         if (procRunner == null) {
-            procRunner = new OracleStoredProcRunner(conn);
+            procRunner = new OracleStoredProcRunner(host, username, password, isFunction, 
+                new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), printOutput);
         }
 
         if (isFunction) {
@@ -126,7 +123,7 @@ public class OracleRunnerCli implements Callable<Integer> {
         }
     }
 
-    private Integer runFunction(Connection conn) throws SQLException {
+    private Integer runFunction(Connection conn) throws SQLException, Exception {
         if (returnType == null) {
             System.err.println("Return type must be specified for functions");
             return 1;
@@ -144,7 +141,12 @@ public class OracleRunnerCli implements Callable<Integer> {
         if (inParams != null) {
             for (String param : inParams) {
                 String[] parts = param.split(":");
-                params.add(ProcedureParam.in(parts[0], sqlType, parseValue(parts[2])));
+                int paramType = getSqlType(parts[1]);
+                if (paramType == -1) {
+                    System.err.println("Invalid parameter type: " + parts[1]);
+                    return 1;
+                }
+                params.add(new ProcedureParam(parts[0], parts[1], parseValue(parts[2])));
             }
         }
 
@@ -152,7 +154,7 @@ public class OracleRunnerCli implements Callable<Integer> {
         if (outParams != null) {
             for (String param : outParams) {
                 String[] parts = param.split(":");
-                params.add(ProcedureParam.out(parts[0], sqlType));
+                params.add(new ProcedureParam(parts[0], parts[1], null));
             }
         }
 
@@ -160,23 +162,23 @@ public class OracleRunnerCli implements Callable<Integer> {
         if (inOutParams != null) {
             for (String param : inOutParams) {
                 String[] parts = param.split(":");
-                params.add(ProcedureParam.inOut(parts[0], sqlType, parseValue(parts[2])));
+                params.add(new ProcedureParam(parts[0], parts[1], parseValue(parts[2])));
             }
         }
 
-        Object result = procRunner.executeFunction(target, sqlType, params.toArray(new ProcedureParam[0]));
+        Object result = procRunner.execute(target);
         System.out.println("Function result: " + result);
         return 0;
     }
 
-    private Integer runStoredProcedure(Connection conn) throws SQLException {
+    private Integer runStoredProcedure(Connection conn) throws SQLException, Exception {
         List<ProcedureParam> params = new ArrayList<>();
 
         // Add input parameters
         if (inParams != null) {
             for (String param : inParams) {
                 String[] parts = param.split(":");
-                params.add(ProcedureParam.in(parts[0], getSqlType(parts[1]), parseValue(parts[2])));
+                params.add(new ProcedureParam(parts[0], parts[1], parseValue(parts[2])));
             }
         }
 
@@ -184,7 +186,7 @@ public class OracleRunnerCli implements Callable<Integer> {
         if (outParams != null) {
             for (String param : outParams) {
                 String[] parts = param.split(":");
-                params.add(ProcedureParam.out(parts[0], getSqlType(parts[1])));
+                params.add(new ProcedureParam(parts[0], parts[1], null));
             }
         }
 
@@ -192,11 +194,11 @@ public class OracleRunnerCli implements Callable<Integer> {
         if (inOutParams != null) {
             for (String param : inOutParams) {
                 String[] parts = param.split(":");
-                params.add(ProcedureParam.inOut(parts[0], getSqlType(parts[1]), parseValue(parts[2])));
+                params.add(new ProcedureParam(parts[0], parts[1], parseValue(parts[2])));
             }
         }
 
-        procRunner.executeProcedure(target, params.toArray(new ProcedureParam[0]));
+        procRunner.execute(target);
         return 0;
     }
 
