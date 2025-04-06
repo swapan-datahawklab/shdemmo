@@ -13,13 +13,15 @@ This directory contains scripts and templates for creating and testing the appli
 ## Usage
 
 1. Create the distribution bundle:
+
    ```bash
    ./create-bundle.sh
    ```
 
 2. Test the bundle:
+
    ```bash
    ./test-logging.sh
    ```
 
-The scripts will create a `shdemmo-bundle` directory and a `shdemmo-bundle.tar.gz` file in the project root. 
+The scripts will create a `shdemmo-bundle` directory and a `shdemmo-bundle.tar.gz` file in the project root.
