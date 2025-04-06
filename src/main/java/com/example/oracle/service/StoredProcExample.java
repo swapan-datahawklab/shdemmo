@@ -2,7 +2,7 @@ package com.example.oracle.service;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.Types;
+import java.util.ArrayList;
 
 /**
  * Example demonstrating how to use the OracleStoredProcRunner.
@@ -17,35 +17,43 @@ public class StoredProcExample {
         String url = "jdbc:oracle:thin:@" + args[0];
         String username = args[1];
         String password = args[2];
-
-        try (Connection conn = DriverManager.getConnection(url, username, password);
-             OracleStoredProcRunner runner = new OracleStoredProcRunner(conn)) {
+        try (Connection conn = DriverManager.getConnection(url, username, password)) {
+            OracleStoredProcRunner runner = new OracleStoredProcRunner(args[0], username, password, false, 
+                new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), true);
             
             // Example 1: Calling a stored procedure with IN and OUT parameters
             System.out.println("\nExample 1: Calling stored procedure");
-            runner.executeProcedure(
-                "UPDATE_EMPLOYEE_SALARY",
-                OracleStoredProcRunner.ProcedureParam.in("p_emp_id", Types.NUMERIC, 101),
-                OracleStoredProcRunner.ProcedureParam.in("p_percentage", Types.NUMERIC, 10.5),
-                OracleStoredProcRunner.ProcedureParam.out("p_new_salary", Types.NUMERIC)
-            );
+            java.util.List<OracleStoredProcRunner.ProcedureParam> inputParams = new ArrayList<>();
+            inputParams.add(new OracleStoredProcRunner.ProcedureParam("p_emp_id", "NUMERIC", 101));
+            inputParams.add(new OracleStoredProcRunner.ProcedureParam("p_percentage", "NUMERIC", 10.5));
+            java.util.List<OracleStoredProcRunner.ProcedureParam> outputParams = new ArrayList<>();
+            outputParams.add(new OracleStoredProcRunner.ProcedureParam("p_new_salary", "NUMERIC", null));
+            
+            runner = new OracleStoredProcRunner(args[0], username, password, false, 
+                inputParams, outputParams, new ArrayList<>(), true);
+            runner.execute("UPDATE_EMPLOYEE_SALARY");
 
             // Example 2: Calling a function that returns a value
             System.out.println("\nExample 2: Calling function");
-            Object result = runner.executeFunction(
-                "GET_DEPARTMENT_BUDGET",
-                Types.NUMERIC,
-                OracleStoredProcRunner.ProcedureParam.in("p_dept_id", Types.NUMERIC, 20)
-            );
-            System.out.printf("Department budget: %s%n", result);
+            java.util.List<OracleStoredProcRunner.ProcedureParam> inputParams2 = new ArrayList<>();
+            inputParams2.add(new OracleStoredProcRunner.ProcedureParam("p_dept_id", "NUMERIC", 20));
+            java.util.List<OracleStoredProcRunner.ProcedureParam> outputParams2 = new ArrayList<>();
+            outputParams2.add(new OracleStoredProcRunner.ProcedureParam("result", "NUMERIC", null));
             
+            runner = new OracleStoredProcRunner(args[0], username, password, false, 
+                inputParams2, outputParams2, new ArrayList<>(), true);
+            Object result = runner.execute("GET_DEPARTMENT_BUDGET");
+            System.out.printf("Department budget: %s%n", result);
             // Example 3: Procedure with INOUT parameter
             System.out.println("\nExample 3: Procedure with INOUT parameter");
-            runner.executeProcedure(
-                "CALCULATE_BONUS",
-                OracleStoredProcRunner.ProcedureParam.in("p_emp_id", Types.NUMERIC, 101),
-                OracleStoredProcRunner.ProcedureParam.inOut("p_bonus_amount", Types.NUMERIC, 1000.0)
-            );
+            java.util.List<OracleStoredProcRunner.ProcedureParam> inputParams3 = new ArrayList<>();
+            inputParams3.add(new OracleStoredProcRunner.ProcedureParam("p_emp_id", "NUMERIC", 101));
+            java.util.List<OracleStoredProcRunner.ProcedureParam> inOutParams = new ArrayList<>();
+            inOutParams.add(new OracleStoredProcRunner.ProcedureParam("p_bonus_amount", "NUMERIC", 1000.0));
+            
+            runner = new OracleStoredProcRunner(args[0], username, password, false, 
+                inputParams3, new ArrayList<>(), inOutParams, true);
+            runner.execute("CALCULATE_BONUS");
 
         } catch (Exception e) {
             System.err.println("Error executing stored procedures/functions:");
