@@ -1,33 +1,14 @@
-CREATE USER HR IDENTIFIED BY hrpass;
-
-ALTER USER HR DEFAULT TABLESPACE users QUOTA UNLIMITED ON users;
-
-ALTER USER HR TEMPORARY TABLESPACE TEMP;
-
-GRANT CONNECT TO HR;
-
-GRANT CREATE SESSION, CREATE VIEW, CREATE TABLE, ALTER SESSION, CREATE SEQUENCE TO HR;
-GRANT CREATE SYNONYM, CREATE DATABASE LINK, RESOURCE, UNLIMITED TABLESPACE TO HR;
-
 ALTER SESSION SET NLS_LANGUAGE=American;
 ALTER SESSION SET NLS_TERRITORY=America;
 
-/* Regions */
-
+Connect hr/hrpass
 CREATE TABLE regions (
   region_id NUMBER CONSTRAINT regions_id_nn NOT NULL,
   region_name VARCHAR2(25)
 );
 
-CREATE UNIQUE INDEX reg_id_pk
-ON regions (region_id);
-
-ALTER TABLE regions
-ADD CONSTRAINT reg_id_pk
-PRIMARY KEY (region_id);
-
-/* Countries */
-
+CREATE UNIQUE INDEX reg_id_pk ON regions (region_id);
+ALTER TABLE regions ADD CONSTRAINT reg_id_pk PRIMARY KEY (region_id);
 CREATE TABLE countries (
   country_id CHAR(2) CONSTRAINT  country_id_nn NOT NULL,
   country_name VARCHAR2(40),
@@ -36,12 +17,7 @@ CREATE TABLE countries (
 )
 ORGANIZATION INDEX;
 
-ALTER TABLE countries
-ADD CONSTRAINT countr_reg_fk
-FOREIGN KEY (region_id)
-REFERENCES regions(region_id);
-
-/* Locations */
+ALTER TABLE countries ADD CONSTRAINT countr_reg_fk FOREIGN KEY (region_id)REFERENCES regions(region_id);
 
 CREATE TABLE locations (
   location_id    NUMBER(4),
@@ -52,8 +28,7 @@ CREATE TABLE locations (
   country_id     CHAR(2)
 );
 
-CREATE UNIQUE INDEX loc_id_pk
-ON locations (location_id);
+CREATE UNIQUE INDEX loc_id_pk ON locations (location_id);
 
 ALTER TABLE locations
 ADD (
@@ -68,9 +43,6 @@ CREATE SEQUENCE locations_seq
   NOCACHE
   NOCYCLE;
 
-/* Departments */
-
-
 CREATE TABLE departments (
   department_id    NUMBER(4),
   department_name  VARCHAR2(30) CONSTRAINT  dept_name_nn  NOT NULL,
@@ -78,8 +50,7 @@ CREATE TABLE departments (
   location_id      NUMBER(4)
 );
 
-CREATE UNIQUE INDEX dept_id_pk
-ON departments (department_id) ;
+CREATE UNIQUE INDEX dept_id_pk ON departments (department_id) ;
 
 ALTER TABLE departments
 ADD (
@@ -94,8 +65,6 @@ CREATE SEQUENCE departments_seq
   NOCACHE
   NOCYCLE;
 
-/* Jobs */
-
 CREATE TABLE jobs (
   job_id         VARCHAR2(10),
   job_title      VARCHAR2(35) CONSTRAINT job_title_nn  NOT NULL,
@@ -103,16 +72,9 @@ CREATE TABLE jobs (
   max_salary     NUMBER(6)
 );
 
-CREATE UNIQUE INDEX job_id_pk
-ON jobs (job_id) ;
+CREATE UNIQUE INDEX job_id_pk ON jobs (job_id) ;
 
-ALTER TABLE jobs
-ADD (
-  CONSTRAINT job_id_pk PRIMARY KEY(job_id)
-);
-
-
-/* Employees */
+ALTER TABLE jobs ADD (CONSTRAINT job_id_pk PRIMARY KEY(job_id));
 
 CREATE TABLE employees (
   employee_id    NUMBER(6),
@@ -130,8 +92,7 @@ CREATE TABLE employees (
   CONSTRAINT     emp_email_uk UNIQUE (email)
 );
 
-CREATE UNIQUE INDEX emp_emp_id_pk
-ON employees (employee_id);
+CREATE UNIQUE INDEX emp_emp_id_pk ON employees (employee_id);
 
 
 ALTER TABLE employees
@@ -146,8 +107,6 @@ ADD (
     FOREIGN KEY (manager_id) REFERENCES employees (employee_id)
 );
 
-/* Alter Tables */
-
 ALTER TABLE departments
 ADD (
   CONSTRAINT dept_mgr_fk
@@ -161,8 +120,6 @@ CREATE SEQUENCE employees_seq
   NOCACHE
   NOCYCLE;
 
-
-/* Job History */
 CREATE TABLE job_history (
   employee_id   NUMBER(6) CONSTRAINT    jhist_employee_nn  NOT NULL,
   start_date    DATE CONSTRAINT    jhist_start_date_nn  NOT NULL,
@@ -172,8 +129,7 @@ CREATE TABLE job_history (
   CONSTRAINT    jhist_date_interval CHECK (end_date > start_date)
 );
 
-CREATE UNIQUE INDEX jhist_emp_id_st_date_pk
-ON job_history (employee_id, start_date);
+CREATE UNIQUE INDEX jhist_emp_id_st_date_pk  ON job_history (employee_id, start_date);
 
 ALTER TABLE job_history
 ADD (
@@ -186,8 +142,6 @@ ADD (
   CONSTRAINT     jhist_dept_fk
     FOREIGN KEY (department_id) REFERENCES departments
 );
-
-
 
 CREATE OR REPLACE VIEW emp_details_view
   (employee_id,
@@ -232,3 +186,5 @@ FROM
   INNER JOIN countries c ON l.country_id = c.country_id
   INNER JOIN regions r ON c.region_id = r.region_id
 WITH READ ONLY;
+
+COMMIT;

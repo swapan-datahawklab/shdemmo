@@ -21,24 +21,28 @@ public class UnifiedDatabaseOperation extends AbstractDatabaseOperation {
     private final String dbType;
     private final ConnectionConfig config;
     
-    public UnifiedDatabaseOperation(String dbType, ConnectionConfig config) throws SQLException {
-        super(config);
+    private UnifiedDatabaseOperation(String dbType, ConnectionConfig config, AbstractDatabaseConnection connection) {
+        super(connection);
         this.dbType = dbType;
         this.config = config;
     }
     
-    @Override
-    protected AbstractDatabaseConnection createDatabaseConnection(ConnectionConfig config) throws SQLException {
+    public static UnifiedDatabaseOperation create(String dbType, ConnectionConfig config) throws SQLException {
+        if (dbType == null || dbType.trim().isEmpty()) {
+            throw new SQLException("Database type cannot be null or empty");
+        }
+        String validatedDbType = dbType.trim().toLowerCase();
+        
         Properties props = new Properties();
         props.setProperty("user", config.getUsername());
         props.setProperty("password", config.getPassword());
         
-        String url = String.format(getUrlFormat(), 
+        String url = String.format(getUrlFormat(validatedDbType), 
             config.getHost(), 
             config.getPort(), 
             config.getDatabase());
             
-        return new AbstractDatabaseConnection(config) {
+        AbstractDatabaseConnection connection = new AbstractDatabaseConnection(config) {
             @Override
             protected Connection createConnection() throws SQLException {
                 return DriverManager.getConnection(url, props);
@@ -49,12 +53,19 @@ public class UnifiedDatabaseOperation extends AbstractDatabaseOperation {
                 return DriverManager.getConnection(url, props);
             }
         };
+        
+        return new UnifiedDatabaseOperation(validatedDbType, config, connection);
     }
     
-    private String getUrlFormat() {
-        switch (dbType.toLowerCase()) {
+    @Override
+    protected AbstractDatabaseConnection createDatabaseConnection(ConnectionConfig config) throws SQLException {
+        return create(dbType, config).connection;
+    }
+    
+    private static String getUrlFormat(String dbType) {
+        switch (dbType) {
             case "oracle":
-                return "jdbc:oracle:thin:@%s:%d:%s";
+                return "jdbc:oracle:thin:@//%s:%d/freepdb1?SERVICE_NAME=freepdb1";
             case "postgresql":
                 return "jdbc:postgresql://%s:%d/%s";
             case "mysql":

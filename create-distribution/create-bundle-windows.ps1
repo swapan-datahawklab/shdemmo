@@ -92,15 +92,22 @@ function New-CustomJRE {
     Write-LogInfo "Creating custom JRE..."
     
     try {
+        # $jlinkModules = @(
+        #     "java.base",
+        #     "java.logging",
+        #     "java.xml",
+        #     "java.sql",
+        #     "java.desktop",
+        #     "java.management",
+        #     "java.naming",
+        #     "jdk.unsupported"
+        # )
+
         $jlinkModules = @(
             "java.base",
             "java.logging",
-            "java.xml",
             "java.sql",
             "java.desktop",
-            "java.management",
-            "java.naming",
-            "jdk.unsupported"
         )
 
         $jlinkArgs = @(
