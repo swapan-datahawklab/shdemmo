@@ -1,0 +1,11 @@
+databases:
+  - name: "DB1"
+    serviceName: "ORCL1"
+  - name: "DB2"
+    serviceName: "ORCL2"
+  - name: "DB3"
+    serviceName: "ORCL3"
+  - name: "DB4"
+    serviceName: "ORCL4"
+  - name: "DB5"
+    serviceName: "ORCL5" 
