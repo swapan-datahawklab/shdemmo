@@ -1,4 +1,4 @@
-package com.example.shelldemo.model;
+package com.example.shelldemo.model.domain;
 
 /**
  * LDAP-specific configuration that extends the base ConnectionConfig.

@@ -5,7 +5,7 @@ import picocli.CommandLine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class PicocliTest {
+class PicocliTest {
 
     @Test
     void testPicocliCommand() {

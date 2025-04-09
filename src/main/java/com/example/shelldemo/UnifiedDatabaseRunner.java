@@ -1,10 +1,11 @@
 package com.example.shelldemo;
 
 import java.io.File;
+import java.io.IOException;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.ArrayList;
+
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.net.URL;
@@ -14,8 +15,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.example.shelldemo.config.CustomDriver;
-import com.example.shelldemo.datasource.UnifiedDatabaseOperation;
-import com.example.shelldemo.model.ConnectionConfig;
+import com.example.shelldemo.model.domain.ConnectionConfig;
+import com.example.shelldemo.util.ProcScriptParser;
+import com.example.shelldemo.util.ProcScriptParser.ProcedureParam;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -31,9 +33,8 @@ import picocli.CommandLine.Parameters;
     description = "Unified Database CLI Tool")
 public class UnifiedDatabaseRunner implements Callable<Integer> {
     private static final Logger log = LoggerFactory.getLogger(UnifiedDatabaseRunner.class);
-
-    private UnifiedDatabaseOperation dbOperation;
     private final ConnectionConfig config;
+    private UnifiedDatabaseOperation dbOperation;
 
     @Option(names = {"-t", "--type"}, required = true,
         description = "Database type (oracle, sqlserver, postgresql, mysql)")
@@ -96,6 +97,45 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
         this.config = new ConnectionConfig();
     }
 
+    private void initializeConfig() {
+        config.setHost(host);
+        config.setUsername(username);
+        config.setPassword(password);
+        config.setServiceName(database);
+        config.setPort(port > 0 ? port : getDefaultPort());
+        
+        String validatedDbType = dbType.trim().toLowerCase();
+        if (!isValidDbType(validatedDbType)) {
+            throw new IllegalArgumentException("Invalid database type: " + validatedDbType);
+        }
+        this.dbOperation = new UnifiedDatabaseOperation(validatedDbType, config);
+    }
+
+    private int executeScript(UnifiedDatabaseOperation dbOperation, File scriptFile) throws IOException, SQLException {
+        List<String> statements = dbOperation.parseSqlFile(scriptFile);
+        for (String sql : statements) {
+            if (printStatements) {
+                log.info("Executing: {}", sql);
+            }
+            dbOperation.executeUpdate(sql);
+        }
+        return 0;
+    }
+
+    private int executeStoredProcedure(UnifiedDatabaseOperation dbOperation, List<ProcedureParam> params) throws SQLException {
+        if (isFunction) {
+            Object result = dbOperation.callStoredProcedure(target, params.toArray());
+            log.info("Function result: {}", result);
+        } else {
+            dbOperation.callStoredProcedure(target, params.toArray());
+        }
+        return 0;
+    }
+
+    private List<ProcedureParam> parseParameters() {
+        return ProcScriptParser.parse(inputParams, outputParams, ioParams);
+    }
+
     @Override
     public Integer call() throws Exception {
         log.debug("Starting UnifiedDatabaseRunner with parameters:");
@@ -108,53 +148,19 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
         if (driverPath != null) {
             loadDriverFromPath(driverPath);
         }
-        
-        if (dbType == null || dbType.trim().isEmpty()) {
-            log.error("Database type is null or empty. Please provide a valid database type using -t or --type option.");
-            return 1;
-        }
 
         try {
-            // Initialize config
-            config.setHost(host);
-            config.setUsername(username);
-            config.setPassword(password);
-            config.setServiceName(database);
-            config.setPort(port > 0 ? port : getDefaultPort());
-
-            // Create database operation with validated dbType
-            String validatedDbType = dbType.trim().toLowerCase();
-            if (!isValidDbType(validatedDbType)) {
-                log.error("Invalid database type: {}. Supported types are: oracle, sqlserver, postgresql, mysql", validatedDbType);
-                return 1;
-            }
-            dbOperation = UnifiedDatabaseOperation.create(validatedDbType, config);
-
-            // Determine operation type
+            initializeConfig();
             File scriptFile = new File(target);
+
             if (scriptFile.exists()) {
-                List<String> statements = dbOperation.parseSqlFile(scriptFile);
-                for (String sql : statements) {
-                    if (printStatements) {
-                        log.info("Executing: {}", sql);
-                    }
-                    dbOperation.executeUpdate(sql);
-                }
-                return 0;
+                return executeScript(dbOperation, scriptFile);
             } else {
-                List<ProcedureParam> params = parseParameters();
-                if (isFunction) {
-                    Object result = dbOperation.callStoredProcedure(target, params.toArray());
-                    log.info("Function result: {}", result);
-                    return 0;
-                } else {
-                    dbOperation.callStoredProcedure(target, params.toArray());
-                    return 0;
-                }
+                return executeStoredProcedure(dbOperation, parseParameters());
             }
         } catch (Exception e) {
-            if (e instanceof SQLException) {
-                log.error(formatOracleError((SQLException) e));
+            if (e instanceof SQLException sqlexception) {
+                log.error(formatOracleError(sqlexception));
             } else {
                 log.error("Error: {}", e.getMessage());
             }
@@ -203,76 +209,7 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
         return message;
     }
 
-    private List<ProcedureParam> parseParameters() {
-        List<ProcedureParam> params = new ArrayList<>();
-
-        // Add input parameters
-        if (inputParams != null) {
-            // Split on comma but not within TO_DATE function
-            List<String> paramPairs = splitPreservingFunctions(inputParams);
-            for (String paramPair : paramPairs) {
-                String[] parts = paramPair.split(":", 3); // Limit to 3 parts
-                if (parts.length != 3) {
-                    throw new IllegalArgumentException("Invalid parameter format: " + paramPair + 
-                        ". Expected format: name:type:value");
-                }
-                params.add(new ProcedureParam(parts[0], parts[1], parts[2]));
-            }
-        }
-
-        // Add output parameters
-        if (outputParams != null) {
-            String[] paramPairs = outputParams.split(",");
-            for (String paramPair : paramPairs) {
-                String[] parts = paramPair.split(":");
-                if (parts.length != 2) {
-                    throw new IllegalArgumentException("Invalid output parameter format: " + paramPair + 
-                        ". Expected format: name:type");
-                }
-                params.add(new ProcedureParam(parts[0], parts[1], null));
-            }
-        }
-
-        // Add input/output parameters
-        if (ioParams != null) {
-            String[] paramPairs = ioParams.split(",");
-            for (String paramPair : paramPairs) {
-                String[] parts = paramPair.split(":");
-                if (parts.length != 3) {
-                    throw new IllegalArgumentException("Invalid IO parameter format: " + paramPair + 
-                        ". Expected format: name:type:value");
-                }
-                params.add(new ProcedureParam(parts[0], parts[1], parts[2]));
-            }
-        }
-
-        return params;
-    }
-
-    private List<String> splitPreservingFunctions(String input) {
-        List<String> result = new ArrayList<>();
-        int start = 0;
-        int parenCount = 0;
-        
-        for (int i = 0; i < input.length(); i++) {
-            char c = input.charAt(i);
-            if (c == '(') {
-                parenCount++;
-            } else if (c == ')') {
-                parenCount--;
-            } else if (c == ',' && parenCount == 0) {
-                result.add(input.substring(start, i).trim());
-                start = i + 1;
-            }
-        }
-        
-        // Add the last parameter
-        if (start < input.length()) {
-            result.add(input.substring(start).trim());
-        }
-        
-        return result;
-    }
+   
 
     private void loadDriverFromPath(String path) {
         try {
@@ -296,29 +233,6 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
         }
     }
 
-    public static class ProcedureParam {
-        private final String name;
-        private final String type;
-        private final Object value;
-
-        public ProcedureParam(String name, String type, Object value) {
-            this.name = name;
-            this.type = type;
-            this.value = value;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public String getType() {
-            return type;
-        }
-
-        public Object getValue() {
-            return value;
-        }
-    }
 
     public static void main(String[] args) {
         int exitCode = new CommandLine(new UnifiedDatabaseRunner()).execute(args);

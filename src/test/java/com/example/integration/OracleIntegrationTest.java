@@ -1,6 +1,5 @@
 package com.example.integration;
 
-import com.example.cli.UnifiedDatabaseRunner;
 import picocli.CommandLine;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -10,17 +9,22 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.MountableFile;
 
+import com.example.shelldemo.UnifiedDatabaseRunner;
+
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @Testcontainers
-public class OracleIntegrationTest {
+class OracleIntegrationTest {
 
+    
     @SuppressWarnings("resource")
     @Container
     private static final OracleContainer oracle = new OracleContainer("gvenzl/oracle-xe:21-slim-faststart")
@@ -36,10 +40,10 @@ public class OracleIntegrationTest {
 
         // Execute initialization scripts in order
         String[] scriptNames = {
-            "1_create_hr_userl.sql",
-            "2_create_hr_tables.sql",
-            "3_populate.sql",
-            "4_others.sql"
+                "1_create_hr_userl.sql",
+                "2_create_hr_tables.sql",
+                "3_populate.sql",
+                "4_others.sql"
         };
 
         for (String scriptName : scriptNames) {
@@ -47,16 +51,16 @@ public class OracleIntegrationTest {
             String containerScriptPath = "/tmp/" + scriptName;
 
             oracle.copyFileToContainer(
-                MountableFile.forClasspathResource(scriptPath),
-                containerScriptPath
+                    MountableFile.forClasspathResource(scriptPath),
+                    containerScriptPath
             );
 
             var result = oracle.execInContainer(
-                "sqlplus",
-                "sys/oracle@//localhost:1521/XE",
-                "AS SYSDBA",
-                "@" + containerScriptPath,
-                "exit"
+                    "sqlplus",
+                    "sys/oracle@//localhost:1521/XE",
+                    "AS SYSDBA",
+                    "@" + containerScriptPath,
+                    "exit"
             );
 
             System.out.println("Script " + scriptName + " output:\n" + result.getStdout());
@@ -73,15 +77,36 @@ public class OracleIntegrationTest {
 
     @AfterAll
     static void cleanup() throws Exception {
-        Files.walk(tempDir)
-            .sorted((a, b) -> b.compareTo(a))
-            .forEach(path -> {
-                try {
-                    Files.delete(path);
-                } catch (IOException e) {
-                    // Log error
-                }
-            });
+        try (var paths = Files.walk(tempDir)) {
+            paths.sorted(Comparator.reverseOrder())
+                    .forEach(path -> {
+                        try {
+                            Files.delete(path);
+                        } catch (IOException e) {
+                            // Log error
+                        }
+                    });
+        }
+    }
+
+    @AfterAll
+    static void cleanupContainer() {
+        oracle.close();
+    }
+
+    @AfterEach
+    void tearDown() throws Exception {
+        try (var paths = Files.walk(tempDir)) {
+            paths.filter(Files::isRegularFile)
+                    .sorted(Comparator.reverseOrder())
+                    .forEach(path -> {
+                        try {
+                            Files.delete(path);
+                        } catch (IOException e) {
+                            // Log error
+                        }
+                    });
+        }
     }
 
     @Test
@@ -184,7 +209,7 @@ public class OracleIntegrationTest {
             SELECT 1 FROM DUAL;
             """);
 
-        String driverPath = getClass().getClassLoader().getResource("ojdbc11.jar").getPath();
+        String driverPath = Objects.requireNonNull(getClass().getClassLoader().getResource("ojdbc11.jar")).getPath();
         String[] args = buildBaseArgs();
         args[args.length - 1] = scriptFile.getAbsolutePath();
         args = appendArgs(args, "--driver-path", driverPath);
@@ -194,14 +219,14 @@ public class OracleIntegrationTest {
 
     private String[] buildBaseArgs() {
         return new String[] {
-            "-t", "oracle",
-            "-H", oracle.getHost(),
-            "-P", String.valueOf(oracle.getFirstMappedPort()),
-            "-u", "HR",
-            "-p", "hrpass",
-            "-d", "XE",
-            "--print-statements", "true",
-            "" // Placeholder for script file or procedure name
+                "-t", "oracle",
+                "-H", oracle.getHost(),
+                "-P", String.valueOf(oracle.getFirstMappedPort()),
+                "-u", "HR",
+                "-p", "hrpass",
+                "-d", "XE",
+                "--print-statements", "true",
+                "" // Placeholder for script file or procedure name
         };
     }
 

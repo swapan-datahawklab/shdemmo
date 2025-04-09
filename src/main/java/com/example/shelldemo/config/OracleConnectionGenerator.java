@@ -1,7 +1,7 @@
 package com.example.shelldemo.config;
 
-import com.example.shelldemo.model.ConnectionConfig;
-import com.example.shelldemo.model.LdapServerConfig;
+import com.example.shelldemo.model.domain.ConnectionConfig;
+import com.example.shelldemo.model.domain.LdapServerConfig;
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -13,24 +13,26 @@ import java.util.Properties;
 public class OracleConnectionGenerator {
     private static final Logger logger = LogManager.getLogger(OracleConnectionGenerator.class);
     private static final String DEFAULT_CONFIG_PATH = "application.yaml";
+    private static final String ORACLE_CONFIG_KEY = "oracle";
     private final YamlConfigReader configReader;
-    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
-    private static final TypeReference<Map<String, Object>> ORACLE_CONFIG_TYPE = new TypeReference<>() {};
-    private static final TypeReference<Map<String, Object>> LDAP_CONFIG_TYPE = new TypeReference<>() {};
+    private final TypeReference<Map<String, Object>> mapType = new TypeReference<>() {};
+    private final TypeReference<Map<String, Object>> oracleConfigType = new TypeReference<>() {};
+    private final TypeReference<Map<String, Object>> ldapConfigType = new TypeReference<>() {};
 
-    public OracleConnectionGenerator() {
-        this.configReader = new YamlConfigReader();
+    public OracleConnectionGenerator() throws IOException {
+        this.configReader = new YamlConfigReader(DEFAULT_CONFIG_PATH);
     }
 
     // Oracle Thin Client methods
-    public String generateThinConnectionString() throws IOException {
+    public String generateThinConnectionString() {
         return generateThinConnectionString(DEFAULT_CONFIG_PATH);
     }
 
-    public String generateThinConnectionString(String configPath) throws IOException {
+    public String generateThinConnectionString(String configPath) {
         logger.debug("Generating Oracle Thin connection string from config: {}", configPath);
-        Map<String, Object> config = configReader.readConfig(configPath, MAP_TYPE);
-        Map<String, Object> oracleConfig = configReader.convertValue(config.get("oracle"), ORACLE_CONFIG_TYPE);
+        Map<String, Object> config = configReader.readConfig(configPath, mapType);
+        Map<String, Object> oracleConfig = configReader.convertValue(config.get(ORACLE_CONFIG_KEY), oracleConfigType);
+        
         ConnectionConfig connectionConfig = new ConnectionConfig();
         connectionConfig.setHost((String) oracleConfig.get("host"));
         connectionConfig.setPort((Integer) oracleConfig.get("port"));
@@ -39,14 +41,14 @@ public class OracleConnectionGenerator {
     }
 
     // LDAP methods
-    public String generateLdapConnectionString() throws IOException {
+    public String generateLdapConnectionString() {
         return generateLdapConnectionString(DEFAULT_CONFIG_PATH);
     }
 
-    public String generateLdapConnectionString(String configPath) throws IOException {
+    public String generateLdapConnectionString(String configPath) {
         logger.debug("Generating Oracle LDAP connection string from config: {}", configPath);
-        Map<String, Object> config = configReader.readConfig(configPath, MAP_TYPE);
-        Map<String, Object> ldapConfig = configReader.convertValue(config.get("ldap"), LDAP_CONFIG_TYPE);
+        Map<String, Object> config = configReader.readConfig(configPath, mapType);
+        Map<String, Object> ldapConfig = configReader.convertValue(config.get("ldap"), ldapConfigType);
         LdapServerConfig ldapServerConfig = new LdapServerConfig();
         ldapServerConfig.setHost((String) ldapConfig.get("host"));
         ldapServerConfig.setPort((Integer) ldapConfig.get("port"));
@@ -72,14 +74,14 @@ public class OracleConnectionGenerator {
         return jdbcUrl.toString();
     }
 
-    public Properties generateLdapProperties() throws IOException {
+    public Properties generateLdapProperties() {
         return generateLdapProperties(DEFAULT_CONFIG_PATH);
     }
 
-    public Properties generateLdapProperties(String configPath) throws IOException {
+    public Properties generateLdapProperties(String configPath) {
         logger.debug("Generating LDAP properties from config: {}", configPath);
-        Map<String, Object> config = configReader.readConfig(configPath, MAP_TYPE);
-        Map<String, Object> ldapConfig = configReader.convertValue(config.get("ldap"), LDAP_CONFIG_TYPE);
+        Map<String, Object> config = configReader.readConfig(configPath, mapType);
+        Map<String, Object> ldapConfig = configReader.convertValue(config.get("ldap"), ldapConfigType);
         LdapServerConfig ldapServerConfig = new LdapServerConfig();
         ldapServerConfig.setHost((String) ldapConfig.get("host"));
         ldapServerConfig.setPort((Integer) ldapConfig.get("port"));
@@ -126,43 +128,43 @@ public class OracleConnectionGenerator {
     }
 
     // Common methods
-    public String getUsername() throws IOException {
+    public String getUsername() {
         return getUsername(DEFAULT_CONFIG_PATH);
     }
 
-    public String getUsername(String configPath) throws IOException {
-        Map<String, Object> config = configReader.readConfig(configPath, MAP_TYPE);
-        Map<String, Object> oracleConfig = configReader.convertValue(config.get("oracle"), ORACLE_CONFIG_TYPE);
+    public String getUsername(String configPath) {
+        Map<String, Object> config = configReader.readConfig(configPath, mapType);
+        Map<String, Object> oracleConfig = configReader.convertValue(config.get(ORACLE_CONFIG_KEY), oracleConfigType);
         return (String) oracleConfig.get("username");
     }
 
-    public String getPassword() throws IOException {
+    public String getPassword() {
         return getPassword(DEFAULT_CONFIG_PATH);
     }
 
-    public String getPassword(String configPath) throws IOException {
-        Map<String, Object> config = configReader.readConfig(configPath, MAP_TYPE);
-        Map<String, Object> oracleConfig = configReader.convertValue(config.get("oracle"), ORACLE_CONFIG_TYPE);
+    public String getPassword(String configPath) {
+        Map<String, Object> config = configReader.readConfig(configPath, mapType);
+        Map<String, Object> oracleConfig = configReader.convertValue(config.get(ORACLE_CONFIG_KEY), oracleConfigType);
         return (String) oracleConfig.get("password");
     }
 
-    public String getBindDn() throws IOException {
+    public String getBindDn() {
         return getBindDn(DEFAULT_CONFIG_PATH);
     }
 
-    public String getBindDn(String configPath) throws IOException {
-        Map<String, Object> config = configReader.readConfig(configPath, MAP_TYPE);
-        Map<String, Object> ldapConfig = configReader.convertValue(config.get("ldap"), LDAP_CONFIG_TYPE);
+    public String getBindDn(String configPath) {
+        Map<String, Object> config = configReader.readConfig(configPath, mapType);
+        Map<String, Object> ldapConfig = configReader.convertValue(config.get("ldap"), ldapConfigType);
         return (String) ldapConfig.get("bindDn");
     }
 
-    public String getBindPassword() throws IOException {
+    public String getBindPassword() {
         return getBindPassword(DEFAULT_CONFIG_PATH);
     }
 
-    public String getBindPassword(String configPath) throws IOException {
-        Map<String, Object> config = configReader.readConfig(configPath, MAP_TYPE);
-        Map<String, Object> ldapConfig = configReader.convertValue(config.get("ldap"), LDAP_CONFIG_TYPE);
+    public String getBindPassword(String configPath) {
+        Map<String, Object> config = configReader.readConfig(configPath, mapType);
+        Map<String, Object> ldapConfig = configReader.convertValue(config.get("ldap"), ldapConfigType);
         return (String) ldapConfig.get("bindPassword");
     }
 } 

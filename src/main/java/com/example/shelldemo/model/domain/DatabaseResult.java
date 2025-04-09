@@ -1,4 +1,4 @@
-package com.example.shelldemo.model;
+package com.example.shelldemo.model.domain;
 
 public class DatabaseResult {
     private final String databaseName;

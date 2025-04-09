@@ -1,16 +1,17 @@
-package com.example.shelldemo.model;
+package com.example.shelldemo.model.base;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Abstract base class for configuration readers.
  * Provides common functionality and logging for configuration reading operations.
  */
-public abstract class AbstractConfigReader implements ConfigReader {
+public abstract class AbstractConfigReader {
     protected final Logger logger = LogManager.getLogger(getClass());
 
     /**
@@ -25,7 +26,7 @@ public abstract class AbstractConfigReader implements ConfigReader {
         File file = new File(filePath);
         
         if (!file.exists()) {
-            throw new IOException("Configuration file does not exist: " + filePath);
+            throw new IOException("Configuration file not found: " + filePath);
         }
         if (!file.isFile()) {
             throw new IOException("Path is not a file: " + filePath);
@@ -50,4 +51,7 @@ public abstract class AbstractConfigReader implements ConfigReader {
             logger.debug("Reading configuration from: {} as Map", filePath);
         }
     }
+
+    public abstract Map<String, Object> readConfig(String filePath) throws IOException;
+    public abstract <T> T readConfig(String filePath, Class<T> valueType) throws IOException;
 } 

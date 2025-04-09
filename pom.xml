@@ -10,8 +10,6 @@
 
   <name>shdemmo</name>
   <description>Oracle Database Utilities with Spring Shell Interface</description>
-  <!-- FIXME change it to the project's website -->
-  <url>http://www.example.com</url>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -19,11 +17,10 @@
     <maven.compiler.target>21</maven.compiler.target>
     
     <!-- Dependency versions -->
-    <slf4j.version>2.0.12</slf4j.version>
-    <logback.version>1.5.3</logback.version>
+    <slf4j.version>2.0.17</slf4j.version>
+    <logback.version>1.5.18</logback.version>
     <picocli.version>4.7.5</picocli.version>
     <oracle.version>23.7.0.25.01</oracle.version>
-    <spring.shell.version>3.1.6</spring.shell.version>
     <junit.version>5.10.2</junit.version>
     <mockito.version>5.11.0</mockito.version>
     
@@ -106,10 +103,46 @@
       <version>1.19.3</version>
       <scope>test</scope>
     </dependency>
+
+    <!-- PlantUML -->
+    <dependency>
+      <groupId>net.sourceforge.plantuml</groupId>
+      <artifactId>plantuml</artifactId>
+      <version>1.2024.3</version>
+    </dependency>
+
+    <!-- YAML Support -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.dataformat</groupId>
+      <artifactId>jackson-dataformat-yaml</artifactId>
+      <version>2.16.1</version>
+    </dependency>
+
+    <!-- Log4j2 -->
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-api</artifactId>
+      <version>2.22.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-core</artifactId>
+      <version>2.22.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-slf4j2-impl</artifactId>
+      <version>2.22.1</version>
+    </dependency>
+    <dependency>
+      <groupId>com.lmax</groupId>
+      <artifactId>disruptor</artifactId>
+      <version>3.4.4</version>
+    </dependency>
   </dependencies>
 
   <build>
-    <pluginManagement><!-- lock down plugins versions to avoid using Maven defaults (may be moved to parent pom) -->
+    <pluginManagement><!-- lock down plugins versions to avoid using Maven defaults (perhaps moved to parent pom) -->
       <plugins>
         
         <!-- Compiles Java source code and processes annotations -->
@@ -192,6 +225,7 @@
                   <artifact>*:*</artifact>
                   <excludes>
                     <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/DEPENDENCIES</exclude>
                     <exclude>META-INF/*.DSA</exclude>
                     <exclude>META-INF/*.RSA</exclude>
                     <exclude>module-info.class</exclude>
