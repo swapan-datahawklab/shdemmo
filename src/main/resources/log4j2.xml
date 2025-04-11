@@ -1,17 +1,75 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Configuration status="WARN">
+<Configuration status="WARN" packages="org.apache.logging.log4j.core,org.apache.logging.log4j.core.async,org.apache.logging.log4j.kafka">
+    
+    <Properties>
+        <!-- Configurable properties -->
+        <Property name="LOG_PATTERN">%d{ISO8601} [%t] %-5level %logger{36} - %msg%n</Property>
+        <Property name="KAFKA_BOOTSTRAP_SERVERS">localhost:9092</Property>
+        <Property name="KAFKA_TOPIC">logs</Property>
+        <Property name="ASYNC_QUEUE_SIZE">8192</Property>
+        <Property name="LOG_FILE_PATH">logs/application.log</Property>
+    </Properties>
+
     <Appenders>
-        <Console name="Console" target="SYSTEM_OUT">
-            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+        <!-- Console Appender with Async -->
+        <Console name="ConsoleAsync" target="SYSTEM_OUT">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
         </Console>
-        <Async name="Async">
-            <AppenderRef ref="Console"/>
+
+        <!-- Rolling File Appender with Async -->
+        <RollingRandomAccessFile name="FileAsync"
+                               fileName="${LOG_FILE_PATH}"
+                               filePattern="logs/archive/application-%d{yyyy-MM-dd}-%i.log.gz"
+                               immediateFlush="false"
+                               append="true">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy/>
+                <SizeBasedTriggeringPolicy size="100 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="30"/>
+        </RollingRandomAccessFile>
+
+        <!-- Kafka Appender -->
+        <Kafka name="KafkaAsync" topic="${KAFKA_TOPIC}">
+            <Property name="bootstrap.servers">${KAFKA_BOOTSTRAP_SERVERS}</Property>
+            <Property name="compression.type">lz4</Property>
+            <Property name="linger.ms">0</Property>
+            <Property name="acks">0</Property>
+            <Property name="batch.size">32768</Property>
+            <!-- Use JSON Layout for structured logging -->
+            <JsonLayout compact="true" eventEol="true" properties="true" stacktraceAsString="true"/>
+        </Kafka>
+
+        <!-- Async Root Appender Group -->
+        <Async name="AsyncRoot" bufferSize="${ASYNC_QUEUE_SIZE}" includeLocation="false">
+            <AppenderRef ref="ConsoleAsync"/>
+            <AppenderRef ref="FileAsync"/>
+        </Async>
+
+        <!-- Async Kafka Group (separate to make it optional) -->
+        <Async name="AsyncKafka" bufferSize="${ASYNC_QUEUE_SIZE}" includeLocation="false">
+            <AppenderRef ref="KafkaAsync"/>
         </Async>
     </Appenders>
+
     <Loggers>
-        <Root level="info">
-            <AppenderRef ref="Async"/>
+        <!-- Application Loggers -->
+        <Logger name="com.example.shelldemo" level="DEBUG" additivity="false">
+            <AppenderRef ref="AsyncRoot"/>
+            <!-- Enable Kafka logging by uncommenting:
+            <AppenderRef ref="AsyncKafka"/>
+            -->
+        </Logger>
+
+        <!-- Framework Loggers -->
+        <Logger name="org.apache.kafka" level="WARN" additivity="false">
+            <AppenderRef ref="AsyncRoot"/>
+        </Logger>
+
+        <!-- Root Logger -->
+        <Root level="INFO">
+            <AppenderRef ref="AsyncRoot"/>
         </Root>
-        <Logger name="com.example.shelldemo" level="debug"/>
     </Loggers>
 </Configuration> 

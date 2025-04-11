@@ -1,23 +1,97 @@
 #!/bin/bash
 
-# Exit on any error
+# Exit on error
 set -e
 
-# Detect operating system
-if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
-    IS_WINDOWS=true
-    BUNDLE_NAME="shdemmo-bundle-windows"
-else
-    IS_WINDOWS=false
-    BUNDLE_NAME="shdemmo-bundle-linux"
-fi
+# Ensure consistent behavior across platforms
+export MSYS_NO_PATHCONV=1
+export MSYS2_ARG_CONV_EXCL="*"
+
+# Detect OS and shell environment
+detect_environment() {
+    case "$(uname -s)" in
+        Linux*)     
+            IS_WINDOWS=false
+            BUNDLE_NAME="shdemmo-bundle-linux"
+            ;;
+        MINGW*|MSYS*|CYGWIN*)     
+            IS_WINDOWS=true
+            BUNDLE_NAME="shdemmo-bundle-windows"
+            ;;
+        *)          
+            log_error "Unsupported operating system"
+            exit 1
+            ;;
+    esac
+}
+
+# Help function
+show_help() {
+    cat << EOF
+Usage: $(basename "$0") [options]
+
+Options:
+    -h, --help              Show this help message
+    -a, --add-drivers      Download common JDBC drivers from Maven (Oracle, MySQL, PostgreSQL, SQL Server)
+
+The --add-drivers flag will download JDBC drivers specified in drivers.properties and include them in the bundle.
+Drivers will be organized by type in the bundle's 'drivers' directory.
+
+Example:
+    ./$(basename "$0") --add-drivers    # Create bundle with all common JDBC drivers
+    ./$(basename "$0")                  # Create bundle without drivers
+EOF
+    exit 0
+}
+
+# Get absolute path in a cross-platform way
+get_absolute_path() {
+    local path="$1"
+    if [ "$IS_WINDOWS" = true ]; then
+        echo "$(cd "$(dirname "$path")" && pwd -W)/$(basename "$path")"
+    else
+        echo "$(cd "$(dirname "$path")" && pwd)/$(basename "$path")"
+    fi
+}
+
+# Find Maven repository in a cross-platform way
+find_maven_home() {
+    if [ "$IS_WINDOWS" = true ]; then
+        echo "$USERPROFILE/.m2"
+    else
+        echo "$HOME/.m2"
+    fi
+}
+
+# Parse command line arguments
+ADD_COMMON_DRIVERS=false
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            ;;
+        -a|--add-drivers)
+            ADD_COMMON_DRIVERS=true
+            shift
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            show_help
+            ;;
+    esac
+done
+
+# Detect environment
+detect_environment
 
 # Configuration
 APP_NAME="shdemmo"
 APP_VERSION="1.0-SNAPSHOT"
 MAIN_CLASS="com.example.shelldemo.App"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+M2_HOME="$(find_maven_home)"
 
-# Colors for output (works in both Git Bash and Linux)
+# Colors for output
 if [ -t 1 ]; then
     RED='\033[0;31m'
     GREEN='\033[0;32m'
@@ -30,18 +104,102 @@ else
     NC=''
 fi
 
-# Logging functions
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+# Cross-platform compatible file operations
+copy_file() {
+    local src="$1"
+    local dest="$2"
+    if [ "$IS_WINDOWS" = true ]; then
+        cp "$(cygpath -w "$src")" "$(cygpath -w "$dest")"
+    else
+        cp "$src" "$dest"
+    fi
 }
 
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
+make_executable() {
+    local file="$1"
+    if [ "$IS_WINDOWS" = false ]; then
+        chmod +x "$file"
+    fi
 }
 
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1" >&2
+# Function to download JDBC driver from Maven
+download_jdbc_driver() {
+    local db_type="$1"
+    local maven_coords="$2"
+    local target_dir="$3"
+    
+    log_info "Downloading $db_type JDBC driver..."
+    
+    # Create target directory if it doesn't exist
+    mkdir -p "$target_dir"
+    
+    # Split Maven coordinates
+    IFS=':' read -r groupId artifactId version <<< "$maven_coords"
+    
+    # Download using Maven with explicit repository path
+    mvn dependency:copy \
+        -Dartifact="$maven_coords" \
+        -DoutputDirectory="$target_dir" \
+        -Dmdep.stripVersion=true \
+        -Dmaven.repo.local="$M2_HOME/repository" \
+        || {
+            log_error "Failed to download $db_type driver"
+            return 1
+        }
+    
+    # Rename the jar to remove version
+    local jar_name="$artifactId.jar"
+    if [ -f "$target_dir/$artifactId-$version.jar" ]; then
+        mv "$target_dir/$artifactId-$version.jar" "$target_dir/$jar_name"
+    fi
+    
+    log_info "Successfully downloaded $db_type driver to $target_dir/$jar_name"
 }
+
+# Function to download all common drivers
+download_common_drivers() {
+    local bundle_dir="$1"
+    local drivers_file="$SCRIPT_DIR/drivers.properties"
+    
+    if [ ! -f "$drivers_file" ]; then
+        log_error "drivers.properties not found at $drivers_file"
+        return 1
+    }
+    
+    # Read and process drivers.properties
+    while IFS='=' read -r key value || [ -n "$key" ]; do
+        # Skip comments and empty lines
+        [[ $key =~ ^#.*$ ]] && continue
+        [ -z "$key" ] && continue
+        
+        # Extract database type from key
+        local db_type="${key%%.driver}"
+        local target_dir="$bundle_dir/drivers/$db_type"
+        
+        # Download driver
+        download_jdbc_driver "$db_type" "$value" "$target_dir"
+    done < "$drivers_file"
+}
+
+# Create the bundle directory structure
+create_bundle_structure() {
+    local BUNDLE_DIR="$1"
+    
+    # Create directories
+    mkdir -p "$BUNDLE_DIR"/{app,runtime,drivers/{oracle,mysql,postgresql,sqlserver}}
+    
+    # Copy templates with path conversion
+    copy_file "$SCRIPT_DIR/templates/run.sh.template" "$BUNDLE_DIR/run.sh"
+    copy_file "$SCRIPT_DIR/templates/run.bat.template" "$BUNDLE_DIR/run.bat"
+    
+    # Make run scripts executable
+    make_executable "$BUNDLE_DIR/run.sh"
+    
+    log_info "Created bundle structure in $BUNDLE_DIR"
+}
+
+# Main execution starts here
+log_info "Starting bundle creation on $(uname -s)"
 
 # Ensure we're in the project root directory
 if [ ! -f "pom.xml" ]; then
@@ -64,12 +222,16 @@ echo "Analyzing required Java modules..."
 
 REQUIRED_MODULES="java.base,java.logging,java.sql,java.desktop,java.naming,java.management,java.xml,jdk.unsupported,java.security.jgss,java.security.sasl,jdk.crypto.ec,java.transaction.xa"
 
-
 # Create bundle directory structure
 log_info "Creating bundle directory structure..."
 rm -rf "$BUNDLE_NAME"
-mkdir -p "$BUNDLE_NAME/app"
-mkdir -p "$BUNDLE_NAME/logs"
+create_bundle_structure "$BUNDLE_NAME"
+
+# Download common drivers if requested
+if [ "$ADD_COMMON_DRIVERS" = true ]; then
+    log_info "Downloading common JDBC drivers..."
+    download_common_drivers "$BUNDLE_NAME"
+fi
 
 # Create custom JRE (only for Linux)
 if [ "$IS_WINDOWS" = false ]; then

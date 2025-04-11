@@ -71,7 +71,7 @@ class OracleIntegrationTest {
     }
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws IOException {
         runner = new UnifiedDatabaseRunner();
     }
 

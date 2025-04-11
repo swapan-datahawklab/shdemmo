@@ -1,12 +1,49 @@
-oracle:
-  ldap:
-    servers:
-      - host: ldap1.example.com
-        port: 389
-        ssl: false
-      - host: ldap2.example.com
-        port: 636
-        ssl: true
-    baseDN: "cn=OracleContext,dc=example,dc=com"
-    connectTimeout: 5000
-    readTimeout: 5000 
+# Unified application configuration
+spring:
+  application:
+    name: shell-demo
+
+# Database configurations
+databases:
+  # Database types and their configurations
+  types:
+    oracle:
+      defaultPort: 1521
+      urlTemplate: "jdbc:oracle:thin:@//%s:%d/%s"
+      ldapTemplate: "jdbc:oracle:thin:@ldap://%s:%d/%s,cn=OracleContext,dc=oracle,dc=com"
+      defaultType: "ldap"  # Use LDAP by default unless thin is specified
+    sqlserver:
+      defaultPort: 1433
+      urlTemplate: "jdbc:sqlserver://%s:%d;databaseName=%s"
+    postgresql:
+      defaultPort: 5432
+      urlTemplate: "jdbc:postgresql://%s:%d/%s"
+    mysql:
+      defaultPort: 3306
+      urlTemplate: "jdbc:mysql://%s:%d/%s"
+  
+  # Database instances
+  instances:
+    - name: "DB1"
+      serviceName: "ORCL1"
+    - name: "DB2"
+      serviceName: "ORCL2"
+    - name: "DB3"
+      serviceName: "ORCL3"
+    - name: "DB4"
+      serviceName: "ORCL4"
+    - name: "DB5"
+      serviceName: "ORCL5"
+
+# LDAP Configuration
+ldap:
+  servers:
+    - host: ldap1.example.com
+      port: 389
+      ssl: false
+    - host: ldap2.example.com
+      port: 636
+      ssl: true
+  baseDN: "cn=OracleContext,dc=example,dc=com"
+  connectTimeout: 5000
+  readTimeout: 5000 
