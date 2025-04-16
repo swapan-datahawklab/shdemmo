@@ -7,6 +7,7 @@ services:
       - ..:/workspace:cached
       - maven-cache:/root/.m2:cached
       - oracle-secrets:/run/secrets:ro
+      - ~/.gitconfig:/home/vscode/.gitconfig:ro
     command: sleep infinity
     network_mode: service:db
     environment:
@@ -17,6 +18,10 @@ services:
       ORACLE_PASSWORD_FILE: /run/secrets/app_user_password
       MAVEN_HOME: /usr/share/maven
       MAVEN_CONFIG: /root/.m2
+      GIT_AUTHOR_NAME: ${GIT_AUTHOR_NAME}
+      GIT_AUTHOR_EMAIL: ${GIT_AUTHOR_EMAIL}
+      GIT_COMMITTER_NAME: ${GIT_COMMITTER_NAME}
+      GIT_COMMITTER_EMAIL: ${GIT_COMMITTER_EMAIL}
 
   db:
     image: gvenzl/oracle-xe:21-slim-faststart

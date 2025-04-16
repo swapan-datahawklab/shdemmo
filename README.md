@@ -225,3 +225,12 @@ After adding this configuration, the warning about overlapping Log4j2 resources 
 
 
 docker exec <container_name> cat /run/secrets/app_user_password
+
+git config --global user.name "swapan chakrabarty" &&\
+git config --global user.email "swapan.chakrabarty@datahawklab.com"
+
+git config --global init.defaultBranch main
+git config --global pull.rebase false
+git config --global core.fileMode false
+git config --global core.longpaths true
+git config --global core.symlinks true
