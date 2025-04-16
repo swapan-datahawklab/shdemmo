@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  app:
+    image: mcr.microsoft.com/devcontainers/java:21
+    volumes:
+      - ..:/workspace:cached
+      - maven-cache:/root/.m2:cached
+      - oracle-secrets:/run/secrets:ro
+    command: sleep infinity
+    network_mode: service:db
+    environment:
+      ORACLE_HOST: localhost
+      ORACLE_PORT: 1521
+      ORACLE_SERVICE: ${ORACLE_DATABASE}
+      ORACLE_USER: ${ORACLE_APP_USER}
+      ORACLE_PASSWORD_FILE: /run/secrets/app_user_password
+      MAVEN_HOME: /usr/share/maven
+      MAVEN_CONFIG: /root/.m2
+
+  db:
+    image: gvenzl/oracle-xe:21-slim-faststart
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_SYSTEM_PASSWORD}
+      ORACLE_DATABASE: ${ORACLE_DATABASE}
+      APP_USER: ${ORACLE_APP_USER}
+      GENERATE_APP_USER_PASSWORD: "true"
+      ORACLE_RANDOM_PASSWORD: false
+      ORACLE_CHARACTERSET: ${ORACLE_CHARACTERSET}
+      APP_USER_PASSWORD_FILE: /run/secrets/app_user_password
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+      - ./init-scripts:/container-entrypoint-initdb.d
+      - oracle-secrets:/run/secrets
+    ports:
+      - "1521:1521"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  oracle-data:
+  maven-cache:
+  oracle-secrets: 

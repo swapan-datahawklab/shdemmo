@@ -1,0 +1,26 @@
+{
+    "name": "Java 21 + Oracle DB",
+    "dockerComposeFile": "docker-compose.yml",
+    "service": "app",
+    "workspaceFolder": "/workspace",
+    
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "vscjava.vscode-java-pack",
+                "redhat.vscode-xml",
+                "vmware.vscode-boot-dev-pack",
+                "vscjava.vscode-maven"
+            ],
+            "settings": {
+                "java.jdt.ls.java.home": "/usr/java/openjdk-21",
+                "maven.executable.path": "/usr/share/maven/bin/mvn",
+                "java.configuration.updateBuildConfiguration": "automatic"
+            }
+        }
+    },
+    
+    "forwardPorts": [1521],
+    "postCreateCommand": "mvn install -DskipTests",
+    "remoteUser": "vscode"
+} 

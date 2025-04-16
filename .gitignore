@@ -109,4 +109,7 @@ shdemmo-bundle-windows/
 
 # Keep templates and scripts
 !create-distribution/*.template
-!create-distribution/*.sh 
+!create-distribution/*.sh
+
+# Environment variables
+.env 

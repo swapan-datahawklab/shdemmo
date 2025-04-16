@@ -89,19 +89,19 @@
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>testcontainers</artifactId>
-      <version>1.19.3</version>
+      <version>1.20.6</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>junit-jupiter</artifactId>
-      <version>1.19.3</version>
+      <version>1.20.6</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>oracle-xe</artifactId>
-      <version>1.19.3</version>
+      <version>1.20.6</version>
       <scope>test</scope>
     </dependency>
 
@@ -109,69 +109,50 @@
     <dependency>
       <groupId>net.sourceforge.plantuml</groupId>
       <artifactId>plantuml</artifactId>
-      <version>1.2024.3</version>
+      <version>8059</version>
     </dependency>
 
     <!-- YAML Support -->
     <dependency>
       <groupId>com.fasterxml.jackson.dataformat</groupId>
       <artifactId>jackson-dataformat-yaml</artifactId>
-      <version>2.16.1</version>
+      <version>2.18.3</version>
     </dependency>
 
     <!-- Log4j2 -->
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
       <artifactId>log4j-api</artifactId>
-      <version>2.22.1</version>
+      <version>2.24.3</version>
     </dependency>
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
       <artifactId>log4j-core</artifactId>
-      <version>2.22.1</version>
+      <version>2.24.3</version>
     </dependency>
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
       <artifactId>log4j-slf4j2-impl</artifactId>
-      <version>2.22.1</version>
+      <version>2.24.3</version>
     </dependency>
     <dependency>
       <groupId>com.lmax</groupId>
       <artifactId>disruptor</artifactId>
-      <version>3.4.4</version>
-    </dependency>
-
-    <!-- Log4j2 Core with Async Support -->
-    <dependency>
-      <groupId>org.apache.logging.log4j</groupId>
-      <artifactId>log4j-core</artifactId>
-      <version>${log4j2.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.logging.log4j</groupId>
-      <artifactId>log4j-api</artifactId>
-      <version>${log4j2.version}</version>
-    </dependency>
-
-    <!-- LMAX Disruptor for high-performance async logging -->
-    <dependency>
-      <groupId>com.lmax</groupId>
-      <artifactId>disruptor</artifactId>
-      <version>3.4.4</version>
+      <version>4.0.0</version>
     </dependency>
 
     <!-- Log4j2 Kafka Appender -->
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
       <artifactId>log4j-layout-template-json</artifactId>
-      <version>${log4j2.version}</version>
+      <version>2.24.3</version>
     </dependency>
 
     <!-- Kafka Client -->
     <dependency>
       <groupId>org.apache.kafka</groupId>
       <artifactId>kafka-clients</artifactId>
-      <version>3.6.1</version>
+      <version>4.0.0</version>
     </dependency>
 
     <!-- LZ4 Compression for Kafka -->
@@ -185,7 +166,7 @@
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
-      <version>2.15.2</version>
+      <version>2.18.3</version>
     </dependency>
   </dependencies>
 
@@ -267,6 +248,7 @@
                 <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
                   <resource>META-INF/spring.factories</resource>
                 </transformer>
+                <transformer implementation="com.github.edwgiz.maven_shade_plugin.log4j2_cache_transformer.PluginsCacheFileTransformer" />
               </transformers>
               <filters>
                 <filter>
@@ -304,64 +286,79 @@
             </configuration>
           </execution>
         </executions>
+        <dependencies>
+          <dependency>
+            <groupId>com.github.edwgiz</groupId>
+            <artifactId>maven-shade-plugin.log4j2-cachefile-transformer</artifactId>
+            <version>2.15</version>
+          </dependency>
+        </dependencies>
       </plugin>
 
-      <!-- Execute platform-specific bundle creation scripts -->
+      <!-- Execute bundle creation script -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
         <version>${maven.exec.plugin.version}</version>
         <executions>
-          <!-- Unix/Linux/macOS script -->
           <execution>
-            <id>create-bundle-unix</id>
+            <id>create-bundle</id>
             <phase>verify</phase>
             <goals>
               <goal>exec</goal>
             </goals>
             <configuration>
-              <executable>bash</executable>
+              <executable>${script.shell}</executable>
               <workingDirectory>${project.basedir}</workingDirectory>
               <environmentVariables>
                 <SKIP_MVN_BUILD>true</SKIP_MVN_BUILD>
               </environmentVariables>
               <arguments>
-                <argument>create-distribution/create-bundle.sh</argument>
+                <argument>${script.shell.arg}</argument>
+                <argument>create-distribution/create-bundleall.sh</argument>
               </arguments>
-              <skip>${os.windows}</skip>
-              <successCodes>
-                <successCode>0</successCode>
-              </successCodes>
-            </configuration>
-          </execution>
-          <!-- Windows script -->
-          <execution>
-            <id>create-bundle-windows</id>
-            <phase>verify</phase>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <configuration>
-              <executable>powershell</executable>
-              <workingDirectory>${project.basedir}</workingDirectory>
-              <environmentVariables>
-                <SKIP_MVN_BUILD>true</SKIP_MVN_BUILD>
-              </environmentVariables>
-              <arguments>
-                <argument>-NoProfile</argument>
-                <argument>-NonInteractive</argument>
-                <argument>-ExecutionPolicy</argument>
-                <argument>Bypass</argument>
-                <argument>-File</argument>
-                <argument>create-distribution/create-bundle-windows.ps1</argument>
-              </arguments>
-              <skip>${os.unix}</skip>
               <successCodes>
                 <successCode>0</successCode>
               </successCodes>
             </configuration>
           </execution>
         </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>properties-maven-plugin</artifactId>
+        <version>1.1.0</version>
+        <executions>
+          <execution>
+            <id>set-shell-property</id>
+            <phase>initialize</phase>
+            <goals>
+              <goal>set-system-properties</goal>
+            </goals>
+            <configuration>
+              <properties>
+                <property>
+                  <name>script.shell</name>
+                  <value>${script.shell}</value>
+                </property>
+                <property>
+                  <name>script.shell.arg</name>
+                  <value>${script.shell.arg}</value>
+                </property>
+              </properties>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>versions-maven-plugin</artifactId>
+        <version>2.16.0</version>
+        <configuration>
+          <rulesUri>file://${project.basedir}/rules.xml</rulesUri>
+        </configuration>
       </plugin>
     </plugins>
   </build>
@@ -378,6 +375,8 @@
       <properties>
         <os.unix>true</os.unix>
         <os.windows>false</os.windows>
+        <script.shell>bash</script.shell>
+        <script.shell.arg></script.shell.arg>
       </properties>
     </profile>
     <profile>
@@ -390,6 +389,8 @@
       <properties>
         <os.unix>false</os.unix>
         <os.windows>true</os.windows>
+        <script.shell>C:\Program Files\Git\bin\bash.exe</script.shell>
+        <script.shell.arg>-c</script.shell.arg>
       </properties>
     </profile>
   </profiles>
