@@ -1,51 +1,69 @@
 version: '3.8'
 
+volumes:
+  postgres-data:
+  oracle-data:
+
 services:
   app:
-    image: mcr.microsoft.com/devcontainers/java:21
-    volumes:
-      - ..:/workspace:cached
-      - maven-cache:/root/.m2:cached
-      - oracle-secrets:/run/secrets:ro
-      - ~/.gitconfig:/home/vscode/.gitconfig:ro
-    command: sleep infinity
-    network_mode: service:db
+    container_name: javadev
+    build: 
+      context: .
+      dockerfile: docker/java/Dockerfile
     environment:
-      ORACLE_HOST: localhost
-      ORACLE_PORT: 1521
-      ORACLE_SERVICE: ${ORACLE_DATABASE}
-      ORACLE_USER: ${ORACLE_APP_USER}
-      ORACLE_PASSWORD_FILE: /run/secrets/app_user_password
-      MAVEN_HOME: /usr/share/maven
-      MAVEN_CONFIG: /root/.m2
-      GIT_AUTHOR_NAME: ${GIT_AUTHOR_NAME}
-      GIT_AUTHOR_EMAIL: ${GIT_AUTHOR_EMAIL}
-      GIT_COMMITTER_NAME: ${GIT_COMMITTER_NAME}
-      GIT_COMMITTER_EMAIL: ${GIT_COMMITTER_EMAIL}
+      # NOTE: POSTGRES_DB/USER/PASSWORD should match values in db container
+        POSTGRES_PASSWORD: postgres
+        POSTGRES_USER: postgres
+        POSTGRES_DB: postgres
+        POSTGRES_HOSTNAME: postgresdb
+
+    volumes:
+      - ../..:/workspaces:cached
+      
+    # Overrides default command so things don't shut down after the process ends.
+    command: sleep infinity
+
+    # Runs app on the same network as the database container, allows "forwardPorts" in devcontainer.json function.
+    network_mode: service:db
+
+    # Use "forwardPorts" in **devcontainer.json** to forward an app port locally. 
+    # (Adding the "ports" property to this file will not forward from a Codespace.)
 
   db:
-    image: gvenzl/oracle-xe:21-slim-faststart
+    container_name: postgresdb
+    image: postgres:latest
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init-scripts:/docker-entrypoint-initdb.d
     environment:
-      ORACLE_PASSWORD: ${ORACLE_SYSTEM_PASSWORD}
-      ORACLE_DATABASE: ${ORACLE_DATABASE}
-      APP_USER: ${ORACLE_APP_USER}
-      GENERATE_APP_USER_PASSWORD: "true"
-      ORACLE_RANDOM_PASSWORD: false
-      ORACLE_CHARACTERSET: ${ORACLE_CHARACTERSET}
-      APP_USER_PASSWORD_FILE: /run/secrets/app_user_password
+      # NOTE: POSTGRES_DB/USER/PASSWORD should match values in app container
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+
+    # Add "forwardPorts": ["5432"] to **devcontainer.json** to forward PostgreSQL locally.
+    # (Adding the "ports" property to this file will not forward from a Codespace.)
+  oracle:
+    container_name: oracledb
+    build:
+      context: ./docker/oracledb     # Fixed path
+      dockerfile: Dockerfile
+      args:
+        - ORACLE_FREE_TAG=23-slim-faststart
+    environment:
+      - ORACLE_PASSWORD=SecurePassword  # For development only
+      - APP_USER=HR
+      - APP_USER_PASSWORD=HR
     volumes:
       - oracle-data:/opt/oracle/oradata
-      - ./init-scripts:/container-entrypoint-initdb.d
-      - oracle-secrets:/run/secrets
+      # Mount SQL scripts for development if needed
+      - ./docker/oracledb/init-scripts:/container-entrypoint-initdb.d
     ports:
       - "1521:1521"
     healthcheck:
       test: ["CMD", "healthcheck.sh"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-volumes:
-  oracle-data:
-  maven-cache:
-  oracle-secrets: 
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
