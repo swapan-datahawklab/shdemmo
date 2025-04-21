@@ -1,3 +1,181 @@
+# Project Name
+
+## Source Code Structure
+
+```mermaid
+flowchart TD
+    subgraph Source [Source Code Structure]
+        SRC[src/]
+        
+        subgraph Main [Main]
+            MAIN[src/main/]
+            JAVA[src/main/java/]
+            
+            subgraph Java [Java Source]
+                COM[com/]
+                EXAMPLE[example/]
+                APP[app/]
+                CONTROLLERS[controllers/]
+                MODELS[models/]
+                SERVICES[services/]
+            end
+        end
+        
+        subgraph Test [Test]
+            TEST[src/test/]
+            TESTJAVA[src/test/java/]
+            
+            subgraph TestJava [Test Source]
+                TESTCOM[com/]
+                TESTEXAMPLE[example/]
+                TESTAPP[app/]
+                TESTCONTROLLERS[controllers/]
+                TESTMODELS[models/]
+                TESTSERVICES[services/]
+            end
+        end
+        
+        SRC --> MAIN
+        SRC --> TEST
+        MAIN --> JAVA
+        TEST --> TESTJAVA
+        JAVA --> Java
+        TESTJAVA --> TestJava
+    end
+```
+
+## Project Overview
+
+This project follows a standard Maven/Java project structure with separate source and test directories. The main application code is organized under `src/main/java` while test code resides in `src/test/java`.
+
+### Main Components
+
+- `controllers/` - REST controllers and API endpoints
+- `models/` - Domain models and data structures
+- `services/` - Business logic and service implementations
+
+### Testing
+
+- Tests mirror the main source structure
+- Each component has corresponding test classes
+- Located under `src/test/java`
+
+## Development
+
+### Prerequisites
+
+- Java 11 or higher
+- Maven 3.6+
+
+### Project Analysis & Testing
+
+The project includes comprehensive tools for code analysis, structure verification, and testing:
+
+#### 1. Project Structure Analysis
+```bash
+# Show complete project structure
+./scripts/project-analysis/analyze.sh structure
+
+# Shows:
+- Directory hierarchy
+- File counts by type
+- Package organization
+- Memory bank structure
+```
+
+#### 2. Code Pattern Analysis
+```bash
+# Find similar code patterns
+./scripts/project-analysis/analyze.sh similar 'pattern' ['*.ext']
+
+# Examples:
+./scripts/project-analysis/analyze.sh similar 'class.*implements' '*.java'
+./scripts/project-analysis/analyze.sh similar 'function.*export' '*.js'
+```
+
+#### 3. Package Structure Analysis
+```bash
+# Analyze Java package organization
+./scripts/project-analysis/analyze.sh packages
+
+# Shows:
+- Package hierarchy
+- Class/interface declarations
+- Dependencies between packages
+```
+
+#### 4. File Location Suggestions
+```bash
+# Get suggestions for new files
+./scripts/project-analysis/analyze.sh suggest filename.ext
+
+# Examples:
+./scripts/project-analysis/analyze.sh suggest UserService.java
+./scripts/project-analysis/analyze.sh suggest config.yaml
+```
+
+#### 5. Duplicate Detection
+```bash
+# Check for potential duplicates
+./scripts/project-analysis/analyze.sh check filename.ext ['pattern']
+
+# Examples:
+./scripts/project-analysis/analyze.sh check '*.java'
+./scripts/project-analysis/analyze.sh check UserService.java 'class.*Service'
+```
+
+### Best Practices
+
+1. **Before Adding New Code**:
+   ```bash
+   # Check existing structure
+   ./scripts/project-analysis/analyze.sh structure
+
+   # Get location suggestions
+   ./scripts/project-analysis/analyze.sh suggest newfile.ext
+
+   # Check for duplicates
+   ./scripts/project-analysis/analyze.sh check newfile.ext
+   ```
+
+2. **During Code Review**:
+   ```bash
+   # Find similar patterns
+   ./scripts/project-analysis/analyze.sh similar 'pattern' '*.ext'
+
+   # Check package structure
+   ./scripts/project-analysis/analyze.sh packages
+   ```
+
+3. **Project Maintenance**:
+   ```bash
+   # Verify structure
+   ./scripts/project-analysis/analyze.sh structure
+
+   # Check for duplicates
+   ./scripts/project-analysis/analyze.sh check '*.ext'
+   ```
+
+### Building
+
+```bash
+mvn clean install
+```
+
+### Running Tests
+
+```bash
+mvn test
+```
+
+## Documentation
+
+For detailed documentation about the project's memory bank and development practices, see:
+- [Memory Bank Documentation](memory-bank/README.md)
+- [Technical Context](memory-bank/core/techContext.mdc)
+- [System Patterns](memory-bank/core/systemPatterns.mdc)
+- [Project Scripts](memory-bank/core/scripts.mdc)
+
 # Database Utility Tool
 
 ## Database Configuration
@@ -16,6 +194,24 @@ When running the application in a dev container, the database password for the a
    ```
 
 Note: The password is regenerated each time the dev container is rebuilt, but remains consistent during the container's lifetime.
+
+### Oracle Database Passwords
+
+When using the `gvenzl/oracle-free` image without specifying passwords, they are automatically generated for security. To retrieve the passwords:
+
+```bash
+# Get all Oracle passwords
+make get-oracle-passwords
+
+# Or individually:
+# For SYSTEM user
+docker exec oracledb cat /opt/oracle/oradata/.docker_temp_password
+
+# For APP_USER (HR)
+docker exec oracledb cat /opt/oracle/oradata/.app_user_temp_password
+```
+
+Note: These passwords persist as long as the Oracle data volume exists. They will be regenerated if you remove the volume and recreate the container.
 
 ## Logging Configuration
 
@@ -234,3 +430,172 @@ git config --global pull.rebase false
 git config --global core.fileMode false
 git config --global core.longpaths true
 git config --global core.symlinks true
+```
+
+# Project Documentation
+
+## Analysis & Testing Tools
+
+### 1. Project Structure Analysis
+```bash
+# Show complete project structure
+./scripts/project-analysis/analyze.sh structure
+
+# Shows:
+- Directory hierarchy
+- File counts by type
+- Package organization
+- Memory bank structure
+```
+
+### 2. Code Pattern Analysis
+```bash
+# Find similar code patterns
+./scripts/project-analysis/analyze.sh similar 'pattern' ['*.ext']
+
+# Examples:
+./scripts/project-analysis/analyze.sh similar 'class.*implements' '*.java'
+./scripts/project-analysis/analyze.sh similar 'function.*export' '*.js'
+```
+
+### 3. Package Structure Analysis
+```bash
+# Analyze Java package organization
+./scripts/project-analysis/analyze.sh packages
+
+# Shows:
+- Package hierarchy
+- Class/interface declarations
+- Dependencies between packages
+```
+
+### 4. File Location Suggestions
+```bash
+# Get suggestions for new files
+./scripts/project-analysis/analyze.sh suggest filename.ext
+
+# Examples:
+./scripts/project-analysis/analyze.sh suggest UserService.java
+./scripts/project-analysis/analyze.sh suggest config.yaml
+```
+
+### 5. Duplicate Detection
+```bash
+# Check for potential duplicates
+./scripts/project-analysis/analyze.sh check filename.ext ['pattern']
+
+# Examples:
+./scripts/project-analysis/analyze.sh check '*.java'
+./scripts/project-analysis/analyze.sh check UserService.java 'class.*Service'
+```
+
+## Best Practices
+
+### 1. Before Adding New Code
+```bash
+# Check existing structure
+./scripts/project-analysis/analyze.sh structure
+
+# Get location suggestions
+./scripts/project-analysis/analyze.sh suggest newfile.ext
+
+# Check for duplicates
+./scripts/project-analysis/analyze.sh check newfile.ext
+```
+
+### 2. During Code Review
+```bash
+# Find similar patterns
+./scripts/project-analysis/analyze.sh similar 'pattern' '*.ext'
+
+# Check package structure
+./scripts/project-analysis/analyze.sh packages
+```
+
+### 3. Project Maintenance
+```bash
+# Verify structure
+./scripts/project-analysis/analyze.sh structure
+
+# Check for duplicates
+./scripts/project-analysis/analyze.sh check '*.ext'
+```
+
+## Command Output Examples
+
+### Structure Analysis
+```
+Project Structure:
+└── src/
+    ├── main/
+    │   └── java/
+    │       └── com/example/
+    │           ├── controllers/
+    │           ├── services/
+    │           └── models/
+    └── test/
+        └── java/
+            └── com/example/
+                └── tests/
+
+File counts:
+- Java: 45 files
+- Tests: 32 files
+- Config: 8 files
+```
+
+### Pattern Analysis
+```
+Similar patterns found:
+1. UserService.java:120 - "implements UserRepository"
+2. ProductService.java:85 - "implements ProductRepository"
+3. OrderService.java:150 - "implements OrderRepository"
+```
+
+### Package Analysis
+```
+Package hierarchy:
+com.example
+├── controllers
+│   ├── UserController
+│   └── ProductController
+├── services
+│   ├── UserService
+│   └── ProductService
+└── models
+    ├── User
+    └── Product
+```
+
+### File Suggestions
+```
+Suggested locations for UserService.java:
+1. src/main/java/com/example/services/
+2. src/main/java/com/example/core/services/
+3. src/main/java/com/example/user/services/
+```
+
+### Duplicate Check
+```
+Potential duplicates found:
+1. UserService.java ~ UserServiceImpl.java (80% similar)
+2. ProductDTO.java ~ ProductModel.java (65% similar)
+```
+
+## Usage Guidelines
+
+1. **Regular Analysis**:
+   - Run structure analysis weekly
+   - Check for duplicates during reviews
+   - Analyze packages before refactoring
+
+2. **Code Organization**:
+   - Follow package suggestions
+   - Keep similar patterns consistent
+   - Document significant deviations
+
+3. **Maintenance**:
+   - Update after major changes
+   - Clean up duplicate patterns
+   - Maintain consistent structure
+

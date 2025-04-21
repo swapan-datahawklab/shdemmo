@@ -1,0 +1,33 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+# Memory Bank Organization Template
+
+## Directory Structure
+```
+/memory-bank/                  # Project-wide, permanent memory
+├── README.mdc                 # This file
+├── core/                     # Core project documentation
+│   ├── projectbrief.mdc     # Project requirements and goals
+│   ├── systemPatterns.mdc   # Architectural patterns
+│   └── techContext.mdc      # Technical context
+├── active/                   # Current state and progress
+│   ├── activeContext.mdc    # Current focus and decisions
+│   └── progress.mdc         # Project progress
+├── product/                  # Product documentation
+│   └── productContext.mdc   # Product context and goals
+└── database/                # Database-specific memory
+    ├── patterns.mdc         # Database patterns
+    └── evolution.mdc        # Database changes history
+
+/.cursor/                     # IDE-specific files
+├── rules/                   # Project rules
+│   ├── memory-bank.mdc     # Memory bank rules
+│   └── templates/          # File templates
+└── memory-bank/            # IDE temporary memory
+    ├── code_history.mdc    # Recent code changes
+    └── project_context.mdc # Current development context
+```

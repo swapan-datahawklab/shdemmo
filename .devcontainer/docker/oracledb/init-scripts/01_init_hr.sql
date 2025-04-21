@@ -1,13 +1,26 @@
--- Create HR user and grant necessary privileges
+-- Set container and handle HR user setup
 ALTER SESSION SET CONTAINER = FREEPDB1;
 
--- Create HR user if it doesn't exist
-CREATE USER hr IDENTIFIED BY hr;
-
--- Grant necessary privileges to HR user
-GRANT CREATE SESSION TO hr;
-GRANT CREATE TABLE TO hr;
-GRANT CREATE VIEW TO hr;
-GRANT CREATE SEQUENCE TO hr;
-GRANT CREATE PROCEDURE TO hr;
-GRANT UNLIMITED TABLESPACE TO hr; 
+-- Grant necessary privileges to HR user (whether existing or new)
+DECLARE
+  v_user_exists NUMBER;
+BEGIN
+  -- Check if HR user exists
+  SELECT COUNT(*) INTO v_user_exists 
+  FROM dba_users 
+  WHERE username = 'HR';
+  
+  -- Create user if it doesn't exist
+  IF v_user_exists = 0 THEN
+    EXECUTE IMMEDIATE 'CREATE USER HR IDENTIFIED BY HR';
+  END IF;
+  
+  -- Grant necessary privileges (these are idempotent)
+  EXECUTE IMMEDIATE 'GRANT CREATE SESSION TO HR';
+  EXECUTE IMMEDIATE 'GRANT CREATE TABLE TO HR';
+  EXECUTE IMMEDIATE 'GRANT CREATE VIEW TO HR';
+  EXECUTE IMMEDIATE 'GRANT CREATE SEQUENCE TO HR';
+  EXECUTE IMMEDIATE 'GRANT CREATE PROCEDURE TO HR';
+  EXECUTE IMMEDIATE 'GRANT UNLIMITED TABLESPACE TO HR';
+END;
+/ 

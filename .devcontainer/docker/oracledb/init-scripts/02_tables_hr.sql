@@ -1,4 +1,5 @@
--- Connect as HR user
+-- Connect as HR user and set container
+ALTER SESSION SET CONTAINER = FREEPDB1;
 ALTER SESSION SET CURRENT_SCHEMA = HR;
 
 -- Create base tables without constraints or indexes

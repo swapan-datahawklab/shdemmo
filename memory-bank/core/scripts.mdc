@@ -1,0 +1,154 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Your rule content
+
+- You can @ files here
+- You can use markdown but dont have to
+
+# Project Scripts
+
+This document tracks all project utility scripts and their purposes.
+
+## Project Analysis Tools
+
+### Quick Project Structure Analysis
+Location: `scripts/project-analysis/analyze.sh`
+
+```mermaid
+flowchart TD
+    A[analyze.sh] --> B[Structure]
+    A --> C[Similar Code]
+    A --> D[Packages]
+    A --> E[Suggestions]
+    A --> F[Duplicates]
+    
+    B --> B1[Directory Tree]
+    B --> B2[File Counts]
+    
+    C --> C1[Pattern Search]
+    C --> C2[Code Matches]
+    
+    D --> D1[Package Layout]
+    D --> D2[Class Structure]
+    
+    E --> E1[File Locations]
+    E --> E2[Similar Files]
+    
+    F --> F1[Name Checks]
+    F --> F2[Content Checks]
+```
+
+#### Usage
+
+1. **Show Project Structure**:
+   ```bash
+   ./scripts/project-analysis/analyze.sh structure
+   ```
+   - Displays directory structure
+   - Shows file counts by type
+   - Excludes build/temp directories
+
+2. **Find Similar Code**:
+   ```bash
+   ./scripts/project-analysis/analyze.sh similar 'pattern' ['*.extension']
+   ```
+   - Searches for code patterns
+   - Optional file type filter
+   - Shows line numbers and context
+
+3. **Analyze Java Packages**:
+   ```bash
+   ./scripts/project-analysis/analyze.sh packages
+   ```
+   - Shows package organization
+   - Lists class/interface declarations
+   - Helps understand code structure
+
+4. **Get File Location Suggestions**:
+   ```bash
+   ./scripts/project-analysis/analyze.sh suggest filename.ext
+   ```
+   - Suggests appropriate locations
+   - Shows similar existing files
+   - Context-aware recommendations
+
+5. **Check for Duplicates**:
+   ```bash
+   ./scripts/project-analysis/analyze.sh check filename.ext ['pattern']
+   ```
+   - Finds similar file names
+   - Optional content pattern search
+   - Prevents code duplication
+
+#### When to Use
+
+1. **Before Adding New Files**:
+   - Check structure for proper location
+   - Look for similar existing files
+   - Verify no duplicates exist
+
+2. **During Refactoring**:
+   - Analyze package structure
+   - Find similar code to consolidate
+   - Check for duplicate patterns
+
+3. **Code Review**:
+   - Verify file placement
+   - Check for similar implementations
+   - Ensure proper organization
+
+4. **Project Maintenance**:
+   - Regular structure checks
+   - Find duplicate code
+   - Maintain clean organization
+
+#### Best Practices
+
+1. **Regular Structure Checks**:
+   ```bash
+   # Add to your regular workflow
+   ./scripts/project-analysis/analyze.sh structure
+   ```
+
+2. **Before Creating New Files**:
+   ```bash
+   # Check for existing similar files
+   ./scripts/project-analysis/analyze.sh suggest NewFile.java
+   ./scripts/project-analysis/analyze.sh check NewFile.java
+   ```
+
+3. **During Code Reviews**:
+   ```bash
+   # Look for similar patterns
+   ./scripts/project-analysis/analyze.sh similar 'class.*Controller' '*.java'
+   ```
+
+4. **Package Organization**:
+   ```bash
+   # Verify package structure
+   ./scripts/project-analysis/analyze.sh packages
+   ```
+
+#### Script Maintenance
+
+The script is maintained in two locations:
+1. Development version: `.cursor/rules/tests/analyze_project.sh`
+2. Production version: `scripts/project-analysis/analyze.sh`
+
+When updating:
+1. Make changes in development version
+2. Test thoroughly
+3. Copy to production location
+4. Update this documentation if needed
+
+#### Future Enhancements
+
+Planned improvements:
+1. Add support for more file types
+2. Implement deeper code analysis
+3. Add automated refactoring suggestions
+4. Include test coverage analysis
+5. Add dependency graph generation

@@ -1,0 +1,65 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+# Memory Bank Organization Template
+
+## Directory Structure
+```
+/memory-bank/                  # Project-wide, permanent memory
+├── README.mdc                 # This file
+├── core/                     # Core project documentation
+│   ├── projectbrief.mdc     # Project requirements and goals
+│   ├── systemPatterns.mdc   # Architectural patterns
+│   └── techContext.mdc      # Technical context
+├── active/                   # Current state and progress
+│   ├── activeContext.mdc    # Current focus and decisions
+│   └── progress.mdc         # Project progress
+├── product/                  # Product documentation
+│   └── productContext.mdc   # Product context and goals
+└── database/                # Database-specific memory
+    ├── patterns.mdc         # Database patterns
+    └── evolution.mdc        # Database changes history
+
+/.cursor/                     # IDE-specific files
+├── rules/                   # Project rules
+│   ├── memory-bank.mdc     # Memory bank rules
+│   └── templates/          # File templates
+└── memory-bank/            # IDE temporary memory
+    ├── code_history.mdc    # Recent code changes
+    └── project_context.mdc # Current development context
+```
+
+## File Creation
+
+### Clean Files
+For files that don't need a template:
+```bash
+# Use edit_file tool directly
+# Include only minimal front matter:
+---
+description: "Purpose of file"
+---
+```
+
+### Template-Based Files
+For files that should use a template:
+1. Check available templates in `.cursor/rules/templates/memory-bank/`
+2. Use the template processor:
+```bash
+.cursor/rules/templates/process_template.sh <template_name> <output_file>
+```
+
+### Available Templates
+- `current_state.mdc`: For tracking current system state
+- `base.mdc`: Basic memory bank file structure
+- `document.mdc`: Detailed documentation template
+- `test_memory_bank.mdc`: For memory bank tests
+
+### Important Paths
+- Templates: `.cursor/rules/templates/memory-bank/`
+- Template Processor: `.cursor/rules/templates/process_template.sh`
+- Project Memory: `memory-bank/`
+- IDE Memory: `.cursor/memory-bank/`

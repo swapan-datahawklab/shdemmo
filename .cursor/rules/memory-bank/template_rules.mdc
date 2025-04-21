@@ -1,0 +1,68 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Template Handling Rules
+
+## Template Application
+1. Templates MUST ONLY be applied to files in `.cursor/rules/templates/`
+2. Files outside template directory MUST NOT use templates
+3. When creating new files:
+   - If in templates directory: Use appropriate template
+   - If outside templates directory: Start with minimal front matter:
+     ```yaml
+     ---
+     description: "Purpose of this file"
+     ---
+     ```
+
+## Template Locations
+1. Template Directory:
+   `.cursor/rules/templates/memory-bank/`
+2. Template Files:
+   - Must end in `.mdc`
+   - Must have clear purpose
+   - Must specify `alwaysApply: false`
+
+## Content Rules
+1. Regular Files:
+   - Should NOT contain template markers
+   - Should have minimal front matter
+   - Should focus on actual content
+
+2. Template Files:
+   - Should have full template structure
+   - Should include usage examples
+   - Should specify glob patterns
+
+## Cleanup Process
+When template content appears in regular files:
+1. Keep only:
+   - Actual content
+   - Minimal front matter
+2. Remove all:
+   - Template markers
+   - Template instructions
+   - Template-specific front matter
+
+## Implementation
+1. For new files:
+   ```yaml
+   ---
+   description: "File's purpose"
+   ---
+   
+   # Actual Content
+   ```
+
+2. For templates:
+   ```yaml
+   ---
+   description: "Template purpose"
+   globs: ["pattern"]
+   alwaysApply: false
+   ---
+   
+   # Template Structure
+   ```

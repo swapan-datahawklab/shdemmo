@@ -7,8 +7,6 @@
   <groupId>com.example.shelldemo</groupId>
   <artifactId>shdemmo</artifactId>
   <version>1.0-SNAPSHOT</version>
-
-  <name>shdemmo</name>
   <description>Oracle Database Utilities with Spring Shell Interface</description>
 
   <properties>
@@ -19,10 +17,20 @@
     <!-- Dependency versions -->
     <slf4j.version>2.0.17</slf4j.version>
     <logback.version>1.5.18</logback.version>
-    <picocli.version>4.7.5</picocli.version>
+    <picocli.version>4.7.7</picocli.version>
     <oracle.version>23.7.0.25.01</oracle.version>
-    <junit.version>5.10.2</junit.version>
-    <mockito.version>5.11.0</mockito.version>
+    <junit.version>5.12.2</junit.version>
+    <mockito.version>5.17.0</mockito.version>
+    <testcontainers.version>1.20.6</testcontainers.version>
+    <plantuml.version>8059</plantuml.version>
+    <jackson.version>2.18.3</jackson.version>
+    <log4j2.version>2.24.3</log4j2.version>
+    <disruptor.version>4.0.0</disruptor.version>
+    <kafka.version>4.0.0</kafka.version>
+    <lz4.version>1.8.0</lz4.version>
+    <properties.plugin.version>1.1.0</properties.plugin.version>
+    <versions.plugin.version>2.16.0</versions.plugin.version>
+    <log4j2.transformer.version>2.15</log4j2.transformer.version>
     
     <!-- Plugin versions -->
     <maven.compiler.plugin.version>3.8.0</maven.compiler.plugin.version>
@@ -35,7 +43,6 @@
     <os.unix>true</os.unix>
     <os.windows>true</os.windows>
     <skip.bundle.creation>false</skip.bundle.creation>
-    <log4j2.version>2.20.0</log4j2.version>
   </properties>
 
   <dependencies>
@@ -89,19 +96,19 @@
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>testcontainers</artifactId>
-      <version>1.20.6</version>
+      <version>${testcontainers.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>junit-jupiter</artifactId>
-      <version>1.20.6</version>
+      <version>${testcontainers.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>oracle-xe</artifactId>
-      <version>1.20.6</version>
+      <version>${testcontainers.version}</version>
       <scope>test</scope>
     </dependency>
 
@@ -109,71 +116,70 @@
     <dependency>
       <groupId>net.sourceforge.plantuml</groupId>
       <artifactId>plantuml</artifactId>
-      <version>8059</version>
+      <version>${plantuml.version}</version>
     </dependency>
 
     <!-- YAML Support -->
     <dependency>
       <groupId>com.fasterxml.jackson.dataformat</groupId>
       <artifactId>jackson-dataformat-yaml</artifactId>
-      <version>2.18.3</version>
+      <version>${jackson.version}</version>
     </dependency>
 
     <!-- Log4j2 -->
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
       <artifactId>log4j-api</artifactId>
-      <version>2.24.3</version>
+      <version>${log4j2.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
       <artifactId>log4j-core</artifactId>
-      <version>2.24.3</version>
+      <version>${log4j2.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
       <artifactId>log4j-slf4j2-impl</artifactId>
-      <version>2.24.3</version>
+      <version>${log4j2.version}</version>
     </dependency>
     <dependency>
       <groupId>com.lmax</groupId>
       <artifactId>disruptor</artifactId>
-      <version>4.0.0</version>
+      <version>${disruptor.version}</version>
     </dependency>
 
     <!-- Log4j2 Kafka Appender -->
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
       <artifactId>log4j-layout-template-json</artifactId>
-      <version>2.24.3</version>
+      <version>${log4j2.version}</version>
     </dependency>
 
     <!-- Kafka Client -->
     <dependency>
       <groupId>org.apache.kafka</groupId>
       <artifactId>kafka-clients</artifactId>
-      <version>4.0.0</version>
+      <version>${kafka.version}</version>
     </dependency>
 
     <!-- LZ4 Compression for Kafka -->
     <dependency>
       <groupId>org.lz4</groupId>
       <artifactId>lz4-java</artifactId>
-      <version>1.8.0</version>
+      <version>${lz4.version}</version>
     </dependency>
 
     <!-- Jackson for JSON Layout -->
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
-      <version>2.18.3</version>
+      <version>${jackson.version}</version>
     </dependency>
   </dependencies>
 
   <build>
-    <pluginManagement><!-- lock down plugins versions to avoid using Maven defaults (perhaps moved to parent pom) -->
+    <pluginManagement>
       <plugins>
-        
         <!-- Compiles Java source code and processes annotations -->
         <plugin>
           <artifactId>maven-compiler-plugin</artifactId>
@@ -196,9 +202,8 @@
         <plugin>
           <artifactId>maven-surefire-plugin</artifactId>
           <version>${maven.surefire.plugin.version}</version>
-          
-          <configuration> 
-          <skipTests>true</skipTests>
+          <configuration>
+            <skipTests>true</skipTests>
             <argLine>
               --add-opens java.base/java.lang=ALL-UNNAMED
               --add-opens java.base/java.util=ALL-UNNAMED
@@ -206,13 +211,24 @@
             </argLine>
           </configuration>
         </plugin>
-        
-        <!-- Creates the JAR file -->
+
+        <!-- Creates JAR file -->
         <plugin>
           <artifactId>maven-jar-plugin</artifactId>
           <version>${maven.jar.plugin.version}</version>
         </plugin>
-        
+
+        <!-- Creates shaded/uber JAR -->
+        <plugin>
+          <artifactId>maven-shade-plugin</artifactId>
+          <version>${maven.shade.plugin.version}</version>
+        </plugin>
+
+        <!-- Executes Java programs -->
+        <plugin>
+          <artifactId>maven-exec-plugin</artifactId>
+          <version>${maven.exec.plugin.version}</version>
+        </plugin>
       </plugins>
     </pluginManagement>
 
@@ -290,7 +306,7 @@
           <dependency>
             <groupId>com.github.edwgiz</groupId>
             <artifactId>maven-shade-plugin.log4j2-cachefile-transformer</artifactId>
-            <version>2.15</version>
+            <version>${log4j2.transformer.version}</version>
           </dependency>
         </dependencies>
       </plugin>
@@ -325,10 +341,11 @@
         </executions>
       </plugin>
 
+      <!-- Properties plugin -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>properties-maven-plugin</artifactId>
-        <version>1.1.0</version>
+        <version>${properties.plugin.version}</version>
         <executions>
           <execution>
             <id>set-shell-property</id>
@@ -352,10 +369,11 @@
         </executions>
       </plugin>
 
+      <!-- Versions plugin -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>versions-maven-plugin</artifactId>
-        <version>2.16.0</version>
+        <version>${versions.plugin.version}</version>
         <configuration>
           <rulesUri>file://${project.basedir}/rules.xml</rulesUri>
         </configuration>

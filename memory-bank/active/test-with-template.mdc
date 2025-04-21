@@ -1,0 +1,20 @@
+---
+description: "memory-bank/active/test-with-template.mdc"
+---
+
+
+
+## Overview
+This template is used for creating memory bank documents.
+
+## Content
+- Document title should be descriptive and clear
+- Overview should explain document purpose
+- Content should be well-structured
+- Notes should include any relevant references
+
+## Notes
+- Use markdown formatting
+- Keep sections clear and organized
+- Include relevant file references using @ notation
+- Add metadata as needed

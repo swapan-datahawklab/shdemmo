@@ -1,0 +1,82 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Current Script State
+
+## Script Location
+```yaml
+Category: category_name
+Type: script_type
+Path: path/to/script
+Current: current_script_name
+History: path/to/history
+```
+
+## Current Content
+```sql
+-- Current script content here
+-- Will be replaced with actual content
+```
+
+## Dependencies
+```yaml
+Required:
+  - dependency1
+  - dependency2
+
+Optional:
+  - optional1
+  - optional2
+```
+
+## Usage Pattern
+```bash
+# How to run the script
+command arg1 arg2
+
+# Example
+example_command example_arg1 example_arg2
+```
+
+## State History
+```yaml
+Previous:
+  - Date: YYYY-MM-DD
+    Version: version
+    Changes: change_description
+    
+Current:
+  Date: YYYY-MM-DD
+  Version: version
+  Changes: change_description
+```
+
+## Validation
+```yaml
+Checks:
+  - Check: check_description
+    Command: check_command
+    Expected: expected_output
+
+  - Check: check_description
+    Command: check_command
+    Expected: expected_output
+```
+
+## Known Issues
+1. Issue 1 description
+2. Issue 2 description
+
+## Next Updates
+1. Planned update 1
+2. Planned update 2
+
+## Quick Reference
+```yaml
+Run: command to run script
+Check: command to check status
+Verify: command to verify results
+Rollback: command to rollback changes
+```
