@@ -1,133 +1,280 @@
 package com.example.shelldemo;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
-import java.io.File;
-import java.lang.reflect.Field;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.Logger;
-import org.mockito.MockedStatic;
+import org.slf4j.LoggerFactory;
 
-@ExtendWith(MockitoExtension.class)
+import picocli.CommandLine;
+
+
 public class UnifiedDatabaseRunnerTest {
     
-    @Mock
-    private Logger logger;
+    // Oracle connection parameters for HR schema
+    private static final String ORACLE_HOST = "localhost";
+    private static final int ORACLE_PORT = 1521;
+    private static final String ORACLE_DATABASE = "FREEPDB1";
+    private static final String ORACLE_USERNAME = "HR";
+    private static final String ORACLE_PASSWORD = "HR";
     
-    @Mock
-    private Logger methodLogger;
+    private static final Logger logger = LoggerFactory.getLogger(UnifiedDatabaseRunnerTest.class);
     
-    @Mock
-    private UnifiedDatabaseOperation dbOperation;
+    @TempDir
+    Path tempDir;
     
-    private UnifiedDatabaseRunner runner;
-    
-    @BeforeEach
-    public void setUp() throws Exception {
-        // Create the runner with a factory that returns our mock
-        UnifiedDatabaseRunner.DatabaseOperationFactory factory = (dbType, config) -> dbOperation;
-        runner = new UnifiedDatabaseRunner(logger, methodLogger, factory);
-        
-        // Set required fields
-        setRequiredFields(runner);
-        
-        // Initialize the dbOperation field
-        Field dbOperationField = UnifiedDatabaseRunner.class.getDeclaredField("dbOperation");
-        dbOperationField.setAccessible(true);
-        dbOperationField.set(runner, dbOperation);
+    /**
+     * Helper method to create a standard set of arguments for UnifiedDatabaseRunner
+     */
+    private String[] createDefaultRunnerArgs(String target) {
+        return new String[] {
+            "--type", "oracle",
+            "--connection-type", "thin",
+            "--host", ORACLE_HOST,
+            "--port", String.valueOf(ORACLE_PORT),
+            "--username", ORACLE_USERNAME,
+            "--password", ORACLE_PASSWORD, 
+            "--database", ORACLE_DATABASE,
+            "--stop-on-error",
+            "--print-statements",
+            target
+        };
     }
     
-    private void setRequiredFields(UnifiedDatabaseRunner runner) {
+    // Removed unused method setRequiredFields(UnifiedDatabaseRunner runner)
+
+    @Test
+    @DisplayName("Test connection to HR schema")
+    public void testHRSchemaConnection() throws Exception {
+        // Create a temporary SQL file with a simple query
+        Path sqlFile = tempDir.resolve("hr_connection_test.sql");
+        Files.writeString(sqlFile, "SELECT * FROM employees WHERE rownum <= 5");
+        
+        // Capture the output of the command
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        PrintStream originalOut = System.out;
         try {
-            var dbTypeField = UnifiedDatabaseRunner.class.getDeclaredField("dbType");
-            var hostField = UnifiedDatabaseRunner.class.getDeclaredField("host");
-            var usernameField = UnifiedDatabaseRunner.class.getDeclaredField("username");
-            var passwordField = UnifiedDatabaseRunner.class.getDeclaredField("password");
-            var databaseField = UnifiedDatabaseRunner.class.getDeclaredField("database");
-            var targetField = UnifiedDatabaseRunner.class.getDeclaredField("target");
+            System.setOut(new PrintStream(outputStream));
             
-            dbTypeField.setAccessible(true);
-            hostField.setAccessible(true);
-            usernameField.setAccessible(true);
-            passwordField.setAccessible(true);
-            databaseField.setAccessible(true);
-            targetField.setAccessible(true);
+            // Run the UnifiedDatabaseRunner via command line
+            String[] args = {
+                "--type", "oracle",
+                "--connection-type", "thin",
+                "--host", ORACLE_HOST,
+                "--port", String.valueOf(ORACLE_PORT),
+                "--username", ORACLE_USERNAME,
+                "--password", ORACLE_PASSWORD,
+                "--database", ORACLE_DATABASE,
+                "--stop-on-error",
+                "--print-statements",
+                sqlFile.toFile().getAbsolutePath()
+            };
             
-            dbTypeField.set(runner, "oracle");
-            hostField.set(runner, "localhost");
-            usernameField.set(runner, "test");
-            passwordField.set(runner, "test");
-            databaseField.set(runner, "testdb");
-            targetField.set(runner, "test.sql");
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to set required fields", e);
+            int result = new CommandLine(new UnifiedDatabaseRunner()).execute(args);
+            
+            // Verify successful execution
+            assertEquals(0, result, "Runner should execute successfully");
+            
+            // Verify output contains expected data
+            String output = outputStream.toString();
+            assertTrue(output.contains("EMPLOYEE_ID"), "Output should contain employee data");
+            logger.info("Successfully verified connection to HR schema");
+        } finally {
+            System.setOut(originalOut);
         }
     }
-    
+
     @Test
-    @DisplayName("Test execute script file")
+    @DisplayName("Test query with real data")
+    public void testQueryWithRealData() throws Exception {
+        // Create a temporary SQL file with a more complex query
+        Path sqlFile = tempDir.resolve("hr_complex_query.sql");
+        Files.writeString(sqlFile,
+            "SELECT d.department_name, COUNT(e.employee_id) as employee_count " +
+            "FROM departments d JOIN employees e ON d.department_id = e.department_id " +
+            "GROUP BY d.department_name");
+            
+        // Capture the output of the command
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        PrintStream originalOut = System.out;
+        try {
+            System.setOut(new PrintStream(outputStream));
+            
+            // Run the UnifiedDatabaseRunner via command line
+            String[] args = {
+                "--type", "oracle",
+                "--connection-type", "thin",
+                "--host", ORACLE_HOST,
+                "--port", String.valueOf(ORACLE_PORT),
+                "--username", ORACLE_USERNAME,
+                "--password", ORACLE_PASSWORD,
+                "--database", ORACLE_DATABASE,
+                "--stop-on-error",
+                "--print-statements",
+                sqlFile.toFile().getAbsolutePath()
+            };
+            
+            int result = new CommandLine(new UnifiedDatabaseRunner()).execute(args);
+            
+            // Verify successful execution
+            assertEquals(0, result, "Runner should execute successfully");
+            
+            // Verify output contains expected data
+            String output = outputStream.toString();
+            assertTrue(output.contains("DEPARTMENT_NAME"), "Output should contain department name");
+            assertTrue(output.contains("EMPLOYEE_COUNT"), "Output should contain employee count");
+            logger.info("Successfully queried departments with employee counts");
+        } finally {
+            System.setOut(originalOut);
+        }
+    }
+
+    @Test
+    @DisplayName("Test execute SQL script file")
     public void testExecuteScriptFile() throws Exception {
-        // Arrange
-        var targetField = UnifiedDatabaseRunner.class.getDeclaredField("target");
-        targetField.setAccessible(true);
-        targetField.set(runner, "test.sql");
+        // Create a temporary SQL script
+        Path sqlFile = tempDir.resolve("test_script.sql");
+        Files.writeString(sqlFile, 
+            "SELECT employee_id, first_name, last_name FROM employees WHERE rownum <= 3;\n" +
+            "SELECT department_id, department_name FROM departments WHERE rownum <= 3;\n");
         
-        // Create a spy on a real File object
-        File fileSpy = spy(new File("test.sql"));
-        when(fileSpy.exists()).thenReturn(true);
+        // Execute the script using command line
+        String[] args = createDefaultRunnerArgs(sqlFile.toFile().getAbsolutePath());
+        int result = new CommandLine(new UnifiedDatabaseRunner()).execute(args);
         
-        // Mock the File constructor using MockedStatic
-        try (MockedStatic<File> fileMock = mockStatic(File.class)) {
-            fileMock.when(() -> new File("test.sql")).thenReturn(fileSpy);
+        // Verify successful execution
+        assertEquals(0, result, "Runner should execute successfully");
+        logger.info("Successfully executed SQL script");
+    }
+
+    @Test
+    @DisplayName("Test execute HR schema stored procedure")
+    public void testExecuteStoredProcedure() throws Exception {
+        // Path to the SQL files
+        String createProcPath = tempDir.resolve("create_proc.sql").toString();
+        String dropProcPath = tempDir.resolve("drop_proc.sql").toString();
+        
+        // Copy SQL files to temp directory for the test
+        Files.copy(
+            Path.of("/home/swapanc/code/shdemmo/app/src/test/resources/sql/create_employee_info_proc.sql"),
+            Path.of(createProcPath),
+            StandardCopyOption.REPLACE_EXISTING
+        );
+        Files.copy(
+            Path.of("/home/swapanc/code/shdemmo/app/src/test/resources/sql/drop_employee_info_proc.sql"),
+            Path.of(dropProcPath),
+            StandardCopyOption.REPLACE_EXISTING
+        );
+        
+        try {
+            // First create the stored procedure using UnifiedDatabaseRunner
+            String[] createArgs = createDefaultRunnerArgs(createProcPath);
+            int createResult = new CommandLine(new UnifiedDatabaseRunner()).execute(createArgs);
+            assertEquals(0, createResult, "Procedure creation should succeed");
             
-            // Act
-            int result = runner.call();
+            // Now execute the stored procedure using command line
+            String[] callProcArgs = {
+                "--type", "oracle",
+                "--connection-type", "thin",
+                "--host", ORACLE_HOST,
+                "--port", String.valueOf(ORACLE_PORT),
+                "--username", ORACLE_USERNAME,
+                "--password", ORACLE_PASSWORD,
+                "--database", ORACLE_DATABASE,
+                "--stop-on-error",
+                "--input-params", "p_emp_id:NUMBER:100",
+                "--output-params", "p_result:VARCHAR2",
+                "get_employee_info"
+            };
+            int result = new CommandLine(new UnifiedDatabaseRunner()).execute(callProcArgs);
             
-            // Assert
-            assertEquals(0, result);
-            verify(dbOperation).executeScript(same(fileSpy), eq(false));
+            // Verify successful execution
+            assertEquals(0, result, "Runner should execute procedure successfully");
+            logger.info("Successfully executed stored procedure");
+        } finally {
+            // Clean up by dropping the procedure using UnifiedDatabaseRunner
+            String[] dropArgs = createDefaultRunnerArgs(dropProcPath);
+            new CommandLine(new UnifiedDatabaseRunner()).execute(dropArgs);
         }
     }
-    
+
     @Test
-    @DisplayName("Test execute stored procedure")
-    public void testExecuteStoredProcedure() throws Exception {
-        // Arrange
-        var targetField = UnifiedDatabaseRunner.class.getDeclaredField("target");
-        targetField.setAccessible(true);
-        targetField.set(runner, "test_proc");
+    @DisplayName("Test execute HR schema function")
+    public void testExecuteFunction() throws Exception {
+        // First create a SQL file with function creation
+        Path createFunctionSql = tempDir.resolve("create_function.sql");
+        Files.writeString(createFunctionSql, 
+            "CREATE OR REPLACE FUNCTION get_department_name(p_dept_id IN NUMBER) RETURN VARCHAR2 AS " +
+            "  v_name VARCHAR2(30); " +
+            "BEGIN " +
+            "  SELECT department_name INTO v_name " +
+            "  FROM departments WHERE department_id = p_dept_id; " +
+            "  RETURN v_name; " +
+            "END;");
         
-        // Act
-        int result = runner.call();
+        // Create a SQL file for function deletion
+        Path dropFunctionSql = tempDir.resolve("drop_function.sql");
+        Files.writeString(dropFunctionSql, "DROP FUNCTION get_department_name");
         
-        // Assert
-        assertEquals(0, result);
-        verify(dbOperation).executeStoredProcedure(eq("test_proc"), eq(false), eq(new Object[0]));
-    }
-    
-    @Test
-    @DisplayName("Test driver path loading")
-    public void testDriverPathLoading() throws Exception {
-        // Arrange
-        var driverPathField = UnifiedDatabaseRunner.class.getDeclaredField("driverPath");
-        driverPathField.setAccessible(true);
-        driverPathField.set(runner, "/path/to/driver.jar");
-        
-        var targetField = UnifiedDatabaseRunner.class.getDeclaredField("target");
-        targetField.setAccessible(true);
-        targetField.set(runner, "test.sql");
-        
-        // Act
-        runner.call();
-        
-        // Assert
-        verify(dbOperation).loadDriverFromPath("/path/to/driver.jar");
+        try {
+            // Execute function creation via the runner
+            String[] createArgs = {
+                "--type", "oracle",
+                "--connection-type", "thin",
+                "--host", ORACLE_HOST,
+                "--port", String.valueOf(ORACLE_PORT),
+                "--username", ORACLE_USERNAME,
+                "--password", ORACLE_PASSWORD,
+                "--database", ORACLE_DATABASE,
+                "--stop-on-error", "true",
+                createFunctionSql.toFile().getAbsolutePath()
+            };
+            int createResult = new CommandLine(new UnifiedDatabaseRunner()).execute(createArgs);
+            assertEquals(0, createResult, "Function creation should succeed");
+            
+            // Now call the function via the runner
+            String[] callArgs = {
+                "--type", "oracle",
+                "--connection-type", "thin",
+                "--host", ORACLE_HOST,
+                "--port", String.valueOf(ORACLE_PORT),
+                "--username", ORACLE_USERNAME,
+                "--password", ORACLE_PASSWORD,
+                "--database", ORACLE_DATABASE,
+                "--stop-on-error", "true",
+                "--is-function", "true",
+                "--return-type", "VARCHAR2",
+                "--input-params", "p_dept_id:NUMBER:10",
+                "get_department_name"
+            };
+            
+            int callResult = new CommandLine(new UnifiedDatabaseRunner()).execute(callArgs);
+            
+            // Verify successful execution
+            assertEquals(0, callResult, "Runner should execute function successfully");
+            logger.info("Successfully executed function");
+        } finally {
+            // Clean up by dropping the function, also using the runner
+            String[] dropArgs = {
+                "--type", "oracle",
+                "--connection-type", "thin",
+                "--host", ORACLE_HOST,
+                "--port", String.valueOf(ORACLE_PORT),
+                "--username", ORACLE_USERNAME,
+                "--password", ORACLE_PASSWORD,
+                "--database", ORACLE_DATABASE,
+                "--stop-on-error", "true",
+                dropFunctionSql.toFile().getAbsolutePath()
+            };
+            new CommandLine(new UnifiedDatabaseRunner()).execute(dropArgs);
+        }
     }
 }

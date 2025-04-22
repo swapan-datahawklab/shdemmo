@@ -1,0 +1,23 @@
+make[1]: Entering directory '/home/swapanc/code/shdemmo'
+[36mPostgreSQL connection details:[0m
+[32mJDBC Connection String:[0m
+  jdbc:postgresql://<host>:5432/postgres
+[32mFor local connections:[0m
+  jdbc:postgresql://localhost:5432/postgres
+[32mFor Docker internal connections:[0m
+  jdbc:postgresql://postgresdb:5432/postgres
+[32mConnection parameters:[0m
+  Database: postgres
+  Port: 5432
+  Admin User: postgres
+  Admin Password: postgres
+  Schema: hr (for HR application data)
+[32mConnection URL Format:[0m
+  postgresql://<user>:<password>@<host>:5432/postgres
+[32mpsql Connection Commands:[0m
+  psql -U postgres -h <host> -p 5432 -d postgres
+  psql -U hr -h <host> -p 5432 -d postgres
+[32mConnection String Examples:[0m
+  Admin: postgresql://postgres:postgres@<host>:5432/postgres
+  Schema-specific: postgresql://hr:password@<host>:5432/postgres?currentSchema=hr
+make[1]: Leaving directory '/home/swapanc/code/shdemmo'

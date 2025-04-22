@@ -28,8 +28,95 @@ public class DatabaseConnectionFactory {
     }
 
     /**
+     * Common/standard database types supported by this factory.
+     * Used for validation when no configuration is available.
+     */
+    private static final Map<String, Integer> COMMON_DB_TYPES = Map.of(
+        "oracle", 1521,
+        "postgresql", 5432,
+        "mysql", 3306,
+        "sqlserver", 1433
+    );
+
+    /**
+     * Check if a database type is a common standard one.
+     * Used when configHolder is null.
+     * 
+     * @param dbType the database type to check
+     * @return true if the type is a common database type
+     */
+    private boolean isCommonDbType(String dbType) {
+        return COMMON_DB_TYPES.containsKey(dbType);
+    }
+    
+    /**
+     * Validates and enriches a database connection configuration.
+     * 
+     * @param dbType the database type
+     * @param config the connection configuration
+     * @return the validated and initialized connection configuration
+     * @throws DatabaseConnectionException if validation fails
+     */
+    public ConnectionConfig validateAndEnrichConfig(String dbType, ConnectionConfig config) {
+        logger.debug("Validating and enriching connection config for database type: {}", dbType);
+        
+        // Validate database type - but handle the case when configHolder is null
+        String validatedDbType = dbType.trim().toLowerCase();
+        
+        // When configHolder is null (direct connection mode), use a simple validation
+        if (configHolder == null) {
+            // Simple validation against common database types when no config is available
+            if (!isCommonDbType(validatedDbType)) {
+                String errorMessage = "Invalid or unsupported database type: " + validatedDbType;
+                logger.error(errorMessage);
+                throw new DatabaseConnectionException(errorMessage);
+            }
+        } else {
+            // Normal validation when we have configHolder
+            if (!isValidDbType(validatedDbType)) {
+                String errorMessage = "Invalid database type: " + validatedDbType;
+                logger.error(errorMessage);
+                throw new DatabaseConnectionException(errorMessage);
+            }
+        }
+
+        // Set up connection configuration
+        if (config.getPort() <= 0) {
+            // Use common default ports when config holder is null
+            if (configHolder == null) {
+                Integer defaultPort = COMMON_DB_TYPES.get(validatedDbType);
+                config.setPort(defaultPort != null ? defaultPort : 0);
+            } else {
+                config.setPort(getDefaultPort(validatedDbType));
+            }
+        }
+        config.setDbType(validatedDbType);
+        
+        // Handle Oracle-specific connection type
+        if (validatedDbType.equals("oracle")) {
+            String connectionType = config.getConnectionType();
+            if (connectionType == null || (!connectionType.equals("thin") && !connectionType.equals("ldap"))) {
+                logger.info("No connection type specified for Oracle, defaulting to LDAP");
+                config.setConnectionType("ldap");
+            }
+        }
+        
+        // Validate required fields
+        if (config.getHost() == null || config.getHost().trim().isEmpty()) {
+            throw new DatabaseConnectionException("Database host must be specified");
+        }
+        
+        if (config.getServiceName() == null || config.getServiceName().trim().isEmpty()) {
+            throw new DatabaseConnectionException("Database service name/database name must be specified");
+        }
+        
+        logger.debug("Connection configuration validated and enriched successfully");
+        return config;
+    }
+
+    /**
      * Gets a database connection based on the provided configuration.
-     *
+     * 
      * @param config The connection configuration
      * @return A database connection
      * @throws SQLException if connection fails

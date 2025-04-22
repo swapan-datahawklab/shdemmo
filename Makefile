@@ -171,6 +171,177 @@ all: clean prune build up status
 make-all: all wait-for-db document-db-patterns test-all-db
 	@echo "$(GREEN)All services are up, tested, and documented successfully!$(RESET)"
 
+# Database Connection Details
+.PHONY: oracle-connection-details
+oracle-connection-details:
+	@echo "$(CYAN)Oracle thin client connection details:$(RESET)"
+	@echo "$(GREEN)JDBC Connection String:$(RESET)"
+	@echo "  jdbc:oracle:thin:@<host>:$(ORACLE_PORT)/$(ORACLE_PDB)"
+	@echo "$(GREEN)For local connections:$(RESET)"
+	@echo "  jdbc:oracle:thin:@localhost:$(ORACLE_PORT)/$(ORACLE_PDB)"
+	@echo "  jdbc:oracle:thin:HR/$(ORACLE_HR_PASSWORD)@localhost:$(ORACLE_PORT)/$(ORACLE_PDB)"
+	@echo "$(GREEN)For Docker internal connections:$(RESET)"
+	@echo "  jdbc:oracle:thin:@oracledb:$(ORACLE_PORT)/$(ORACLE_PDB)"
+	@echo "  jdbc:oracle:thin:HR/$(ORACLE_HR_PASSWORD)@oracledb:$(ORACLE_PORT)/$(ORACLE_PDB)"
+	@echo "$(GREEN)Connection parameters:$(RESET)"
+	@echo "  Service Name: $(ORACLE_PDB)"
+	@echo "  Port: $(ORACLE_PORT)"
+	@echo "  System User: system"
+	@echo "  System Password: $(ORACLE_SYSTEM_PASSWORD)"
+	@echo "  App User: HR"
+	@echo "  App Password: $(ORACLE_HR_PASSWORD)"
+	@echo "$(GREEN)TNS Connection String Format:$(RESET)"
+	@echo "  <host>:$(ORACLE_PORT)/$(ORACLE_PDB)"
+	@echo "$(GREEN)SQLPlus Connection Commands:$(RESET)"
+	@echo "  sqlplus system/$(ORACLE_SYSTEM_PASSWORD)@<host>:$(ORACLE_PORT)/$(ORACLE_PDB)"
+	@echo "  sqlplus system/$(ORACLE_SYSTEM_PASSWORD)@localhost:$(ORACLE_PORT)/$(ORACLE_PDB)"
+	@echo "  sqlplus HR/$(ORACLE_HR_PASSWORD)@<host>:$(ORACLE_PORT)/$(ORACLE_PDB)"
+	@echo "  sqlplus HR/$(ORACLE_HR_PASSWORD)@localhost:$(ORACLE_PORT)/$(ORACLE_PDB)"
+	@echo "$(GREEN)TNS Entry Example:$(RESET)"
+	@echo "  ORCLPDB = "
+	@echo "    (DESCRIPTION = "
+	@echo "      (ADDRESS = (PROTOCOL = TCP)(HOST = <host>)(PORT = $(ORACLE_PORT)))"
+	@echo "      (CONNECT_DATA = "
+	@echo "        (SERVER = DEDICATED)"
+	@echo "        (SERVICE_NAME = $(ORACLE_PDB))"
+	@echo "      )"
+	@echo "    )"
+
+.PHONY: postgres-connection-details
+postgres-connection-details:
+	@echo "$(CYAN)PostgreSQL connection details:$(RESET)"
+	@echo "$(GREEN)JDBC Connection String:$(RESET)"
+	@echo "  jdbc:postgresql://<host>:$(POSTGRES_PORT)/$(POSTGRES_DB)"
+	@echo "$(GREEN)For local connections:$(RESET)"
+	@echo "  jdbc:postgresql://localhost:$(POSTGRES_PORT)/$(POSTGRES_DB)"
+	@echo "$(GREEN)For Docker internal connections:$(RESET)"
+	@echo "  jdbc:postgresql://postgresdb:$(POSTGRES_PORT)/$(POSTGRES_DB)"
+	@echo "$(GREEN)Connection parameters:$(RESET)"
+	@echo "  Database: $(POSTGRES_DB)"
+	@echo "  Port: $(POSTGRES_PORT)"
+	@echo "  Admin User: $(POSTGRES_USER)"
+	@echo "  Admin Password: $(POSTGRES_PASSWORD)"
+	@echo "  Schema: hr (for HR application data)"
+	@echo "$(GREEN)Connection URL Format:$(RESET)"
+	@echo "  postgresql://<user>:<password>@<host>:$(POSTGRES_PORT)/$(POSTGRES_DB)"
+	@echo "$(GREEN)psql Connection Commands:$(RESET)"
+	@echo "  psql -U $(POSTGRES_USER) -h <host> -p $(POSTGRES_PORT) -d $(POSTGRES_DB)"
+	@echo "  psql -U hr -h <host> -p $(POSTGRES_PORT) -d $(POSTGRES_DB)"
+	@echo "$(GREEN)Connection String Examples:$(RESET)"
+	@echo "  Admin: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@<host>:$(POSTGRES_PORT)/$(POSTGRES_DB)"
+	@echo "  Schema-specific: postgresql://hr:password@<host>:$(POSTGRES_PORT)/$(POSTGRES_DB)?currentSchema=hr"
+
+.PHONY: db-connection-details
+db-connection-details: oracle-connection-details postgres-connection-details
+	@echo "$(GREEN)All database connection details displayed$(RESET)"
+	@echo "$(CYAN)Replace <host> with your actual hostname or IP address$(RESET)"
+
+.PHONY: save-connection-details
+save-connection-details:
+	@mkdir -p .cursor/connection-details
+	@make oracle-connection-details > .cursor/connection-details/oracle-connection.txt
+	@make postgres-connection-details > .cursor/connection-details/postgres-connection.txt
+	@echo "$(GREEN)Connection details saved to .cursor/connection-details/$(RESET)"
+
+# UnifiedDatabaseRunner Command Generation
+.PHONY: db-client-command-oracle
+db-client-command-oracle:
+	@echo "$(CYAN)Oracle connection command for UnifiedDatabaseRunner:$(RESET)"
+	@echo "$(GREEN)System User Command:$(RESET)"
+	@echo "java -cp target/app.jar com.example.shelldemo.UnifiedDatabaseRunner \\"
+	@echo "  --type oracle \\"
+	@echo "  --connection-type thin \\"
+	@echo "  --host localhost \\"
+	@echo "  --port $(ORACLE_PORT) \\"
+	@echo "  --username system \\"
+	@echo "  --password $(ORACLE_SYSTEM_PASSWORD) \\"
+	@echo "  --database $(ORACLE_PDB) \\"
+	@echo "  --stop-on-error true \\"
+	@echo "  --print-statements true \\"
+	@echo "  <script_file_or_procedure_name>"
+	@echo ""
+	@echo "$(GREEN)HR User Command:$(RESET)"
+	@echo "java -cp target/app.jar com.example.shelldemo.UnifiedDatabaseRunner \\"
+	@echo "  --type oracle \\"
+	@echo "  --connection-type thin \\"
+	@echo "  --host localhost \\"
+	@echo "  --port $(ORACLE_PORT) \\"
+	@echo "  --username HR \\"
+	@echo "  --password $(ORACLE_HR_PASSWORD) \\"
+	@echo "  --database $(ORACLE_PDB) \\"
+	@echo "  --stop-on-error true \\"
+	@echo "  --print-statements true \\"
+	@echo "  <script_file_or_procedure_name>"
+
+.PHONY: db-client-command-postgres
+db-client-command-postgres:
+	@echo "$(CYAN)PostgreSQL connection command for UnifiedDatabaseRunner:$(RESET)"
+	@echo "$(GREEN)Admin User Command:$(RESET)"
+	@echo "java -cp target/app.jar com.example.shelldemo.UnifiedDatabaseRunner \\"
+	@echo "  --type postgresql \\"
+	@echo "  --host localhost \\"
+	@echo "  --port $(POSTGRES_PORT) \\"
+	@echo "  --username $(POSTGRES_USER) \\"
+	@echo "  --password $(POSTGRES_PASSWORD) \\"
+	@echo "  --database $(POSTGRES_DB) \\"
+	@echo "  --stop-on-error true \\"
+	@echo "  --print-statements true \\"
+	@echo "  <script_file_or_procedure_name>"
+	@echo ""
+	@echo "$(GREEN)HR User Command:$(RESET)"
+	@echo "java -cp target/app.jar com.example.shelldemo.UnifiedDatabaseRunner \\"
+	@echo "  --type postgresql \\"
+	@echo "  --host localhost \\"
+	@echo "  --port $(POSTGRES_PORT) \\"
+	@echo "  --username hr \\"
+	@echo "  --password hr_password \\"
+	@echo "  --database $(POSTGRES_DB) \\"
+	@echo "  --stop-on-error true \\"
+	@echo "  --print-statements true \\"
+	@echo "  <script_file_or_procedure_name>"
+
+.PHONY: db-client-stored-procedure-examples
+db-client-stored-procedure-examples:
+	@echo "$(CYAN)Stored Procedure/Function examples for UnifiedDatabaseRunner:$(RESET)"
+	@echo "$(GREEN)Execute Oracle stored procedure:$(RESET)"
+	@echo "java -cp target/app.jar com.example.shelldemo.UnifiedDatabaseRunner \\"
+	@echo "  --type oracle \\"
+	@echo "  --connection-type thin \\"
+	@echo "  --host localhost \\"
+	@echo "  --port $(ORACLE_PORT) \\"
+	@echo "  --username HR \\"
+	@echo "  --password $(ORACLE_HR_PASSWORD) \\"
+	@echo "  --database $(ORACLE_PDB) \\"
+	@echo "  --input \"p_employee_id:NUMBER:101,p_department_id:NUMBER:10\" \\"
+	@echo "  --output \"p_salary:NUMBER,p_hire_date:DATE\" \\"
+	@echo "  update_employee_details"
+	@echo ""
+	@echo "$(GREEN)Execute PostgreSQL function with return value:$(RESET)"
+	@echo "java -cp target/app.jar com.example.shelldemo.UnifiedDatabaseRunner \\"
+	@echo "  --type postgresql \\"
+	@echo "  --host localhost \\"
+	@echo "  --port $(POSTGRES_PORT) \\"
+	@echo "  --username $(POSTGRES_USER) \\"
+	@echo "  --password $(POSTGRES_PASSWORD) \\"
+	@echo "  --database $(POSTGRES_DB) \\"
+	@echo "  --function \\"
+	@echo "  --return-type INTEGER \\"
+	@echo "  --input \"employee_id:INTEGER:101,department_id:INTEGER:10\" \\"
+	@echo "  hr.get_employee_salary"
+
+.PHONY: db-client-commands
+db-client-commands: db-client-command-oracle db-client-command-postgres db-client-stored-procedure-examples
+	@echo "$(GREEN)All UnifiedDatabaseRunner command examples displayed$(RESET)"
+	@echo "$(CYAN)Replace <script_file_or_procedure_name> with actual file or procedure$(RESET)"
+
+.PHONY: save-client-commands
+save-client-commands:
+	@mkdir -p .cursor/client-commands
+	@make db-client-command-oracle > .cursor/client-commands/oracle-client-commands.txt
+	@make db-client-command-postgres > .cursor/client-commands/postgres-client-commands.txt
+	@make db-client-stored-procedure-examples > .cursor/client-commands/stored-procedure-examples.txt
+	@echo "$(GREEN)Client commands saved to .cursor/client-commands/$(RESET)"
+
 # Help command
 .PHONY: help
 help:
@@ -194,4 +365,13 @@ help:
 	@echo "  make test-postgres-connections-all - Test all PostgreSQL connections"
 	@echo "  make test-all-db         - Test all database connections"
 	@echo "  make make-all            - Run all tasks, document patterns, and test connections"
+	@echo "  make oracle-connection-details - Display Oracle thin client connection details"
+	@echo "  make postgres-connection-details - Display PostgreSQL connection details"
+	@echo "  make db-connection-details - Display all database connection details"
+	@echo "  make save-connection-details - Save connection details to files"
+	@echo "  make db-client-command-oracle - Show Oracle command for UnifiedDatabaseRunner"
+	@echo "  make db-client-command-postgres - Show PostgreSQL command for UnifiedDatabaseRunner"
+	@echo "  make db-client-stored-procedure-examples - Show stored procedure examples"
+	@echo "  make db-client-commands - Show all UnifiedDatabaseRunner command examples"
+	@echo "  make save-client-commands - Save client commands to files"
 	@echo "  make help                - Show this help message"
