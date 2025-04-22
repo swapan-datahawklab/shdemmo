@@ -1,4 +1,4 @@
-# Project Name
+# Shell Demo Database Utility
 
 ## Source Code Structure
 
@@ -213,6 +213,105 @@ docker exec oracledb cat /opt/oracle/oradata/.app_user_temp_password
 
 Note: These passwords persist as long as the Oracle data volume exists. They will be regenerated if you remove the volume and recreate the container.
 
+## Configuration System
+
+### Overview
+The application uses a custom configuration system built around `ConfigurationHolder` and `YamlConfigReader`:
+
+- `ConfigurationHolder`: Singleton that loads and caches configuration at startup
+- `YamlConfigReader`: Reads YAML configuration files using Jackson
+- Default configuration loaded from `application.yaml`
+- Runtime properties managed through `DatabaseProperties`
+
+### Environment Variables
+Environment variables are handled through:
+1. `.env` file in `.devcontainer` directory
+2. Variables loaded into environment when container starts
+3. Accessed through `System.getenv()`
+
+### Configuration Hierarchy
+(highest to lowest priority)
+
+1. Environment Variables
+   - Set in `.devcontainer/.env`
+   - Override all other configuration sources
+   - Loaded when container starts
+
+2. Runtime Properties
+   - Set through `DatabaseProperties.setRuntimeProperty()`
+   - Can be modified during application execution
+   - Cached in `ConfigurationHolder`
+
+3. YAML Configuration
+   - Primary configuration in `application.yaml`
+   - Database instances in `dblist.yaml`
+   - Provides default values
+
+### Key Components
+
+1. Core Classes
+   - `ConfigurationHolder`: Singleton that manages all configuration
+   - `DatabaseProperties`: Manages database-specific properties
+   - `ConnectionConfig`: Base class for connection configuration
+   - `LdapServerConfig`: LDAP-specific configuration
+
+2. Configuration Files
+   - `.devcontainer/.env`: Container environment variables
+   - `application.yaml`: Main application configuration
+   - `dblist.yaml`: Database instance definitions
+   - `log4j2.xml`: Logging configuration
+
+### Implementation Details
+1. Configuration Loading
+   - YAML files parsed using Jackson
+   - Environment variables loaded at container startup
+   - Configuration cached for performance
+
+2. Type Safety
+   - Model classes for structured configuration
+   - Validation at startup
+   - Strong typing for all configuration values
+
+3. Security
+   - Sensitive data stored in environment variables
+   - Passwords and keys masked in logs
+   - Secure default values
+
+### Best Practices
+
+1. Sensitive Data
+   - Store in environment variables
+   - Never commit to version control
+   - Mask in logs using `********`
+
+2. Configuration Access
+   - Use `DatabaseProperties` for database config
+   - Access environment variables through system
+   - Cache configuration for performance
+
+3. Type Safety
+   - Use model classes (`ConnectionConfig`, `LdapServerConfig`)
+   - Validate configuration at startup
+   - Provide meaningful error messages
+
+4. Design Principles
+   - Configuration is externalized
+   - Clear separation of concerns
+   - Consistent access patterns
+   - Fail-fast validation
+
+### Usage Example
+```java
+// Access configuration through ConfigurationHolder
+DatabaseConfig config = ConfigurationHolder.getInstance().getDatabaseConfig();
+
+// Set runtime property
+DatabaseProperties.setRuntimeProperty("db.timeout", "30");
+
+// Access environment variable
+String dbPassword = System.getenv("DB_PASSWORD");
+```
+
 ## Logging Configuration
 
 ### Overview
@@ -330,10 +429,7 @@ Method-specific debug log:
 - Rolling policy: Daily rotation with compression
 - Retention: 30 days for regular logs, 7 days for debug logs
 
-ssh -i "C:\Users\swapa\.ssh\id_rsz_tinypcwsl" swapanc@tinypcwsl -p 2222
-
-ssh swapanc@tinypcwsl -p 2222
-
+# Maven Version Management Commands
 
 ```bash
 # Display all dependency updates
@@ -418,7 +514,6 @@ This configuration:
 - Handles the `META-INF/org/apache/logging/log4j/core/config/plugins/Log4j2Plugins.dat` resource
 
 After adding this configuration, the warning about overlapping Log4j2 resources during the Maven build process will be resolved.
-
 
 docker exec <container_name> cat /run/secrets/app_user_password
 
@@ -598,4 +693,42 @@ Potential duplicates found:
    - Update after major changes
    - Clean up duplicate patterns
    - Maintain consistent structure
+
+## Testing Dependencies
+
+### Core Testing Libraries
+The parent POM includes these essential testing dependencies:
+
+- **JUnit Jupiter (junit-jupiter)** - The main testing framework
+- **Mockito Core (mockito-core)** - For mocking in unit tests
+- **Mockito JUnit Jupiter (mockito-junit-jupiter)** - Integration between Mockito and JUnit
+
+### Additional Testing Libraries
+For more comprehensive testing capabilities, we've added:
+
+- **AssertJ** - Provides fluent assertions that are more readable and IDE-friendly
+  ```java
+  assertThat(result).isEqualTo(expected)
+  ```
+
+- **Hamcrest** - Offers powerful matchers for complex assertions
+  ```java
+  assertThat(result, hasProperty("name", equalTo("test")))
+  ```
+
+- **JUnit Pioneer** - Adds useful extensions for JUnit Jupiter like temporary directory improvements and system property handling
+  ```java
+  @TempDir
+  Path tempDir;
+  ```
+
+- **JsonAssert** - Specifically for testing JSON structures (useful since we're using Jackson)
+  ```java
+  JSONAssert.assertEquals(expectedJson, actualJson, false)
+  ```
+
+### Dependency Management
+- All testing dependencies are defined in the parent POM for version consistency
+- Dependencies are added with `<scope>test</scope>` in module POMs
+- Test dependencies are only available during testing, not in the production classpath
 

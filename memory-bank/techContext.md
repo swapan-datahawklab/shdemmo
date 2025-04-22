@@ -17,7 +17,7 @@
   * JDK 21
   * Maven
   * Git
-  * Docker (for Testcontainers)
+  * Docker
 
 ## Dependencies
 - Oracle Database JDBC Driver (ojdbc11)
@@ -28,7 +28,6 @@
 - Testing Stack:
   * JUnit Jupiter (version 5.10.2)
   * Mockito (version 5.11.0)
-  * Testcontainers (version 1.19.3)
 - CLI Framework:
   * PicoCLI
 - Documentation:
@@ -58,7 +57,6 @@
 ## Testing Strategy
 - Unit Testing with JUnit Jupiter
 - Mock testing with Mockito
-- Integration testing with Testcontainers
 - Oracle XE container for database testing
 - Continuous Integration testing
 

@@ -1,0 +1,54 @@
+# Unified application configuration
+spring:
+  application:
+    name: shell-demo
+
+# Database configurations
+databases:
+  # Database types and their configurations
+  types:
+    oracle:
+      defaultPort: 1521
+      templates:
+        thin: "jdbc:oracle:thin:@//%s:%d/%s"
+        ldap: "jdbc:oracle:thin:@ldap://%s:%d/%s,cn=OracleContext,dc=oracle,dc=com"
+      properties:
+        ldap:
+          java.naming.factory.initial: "com.sun.jndi.ldap.LdapCtxFactory"
+          java.naming.security.authentication: "simple"
+          java.naming.security.principal: "cn=admin,dc=example,dc=com"
+          java.naming.security.credentials: "admin123"
+      defaultType: "ldap"
+    
+    sqlserver:
+      defaultPort: 1433
+      templates:
+        default: "jdbc:sqlserver://%s:%d;databaseName=%s"
+      properties:
+        loginTimeout: "30"
+        encrypt: "true"
+        trustServerCertificate: "true"
+    
+    postgresql:
+      defaultPort: 5432
+      templates:
+        default: "jdbc:postgresql://%s:%d/%s"
+      properties:
+        ssl: "true"
+        sslmode: "verify-full"
+        
+    mysql:
+      defaultPort: 3306
+      templates:
+        default: "jdbc:mysql://%s:%d/%s"
+      properties:
+        useSSL: "true"
+        allowPublicKeyRetrieval: "true"
+        serverTimezone: "UTC"
+
+logging:
+  level:
+    root: INFO
+    com.example.shelldemo: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} -- %msg%n" 

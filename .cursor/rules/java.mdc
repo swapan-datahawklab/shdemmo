@@ -211,7 +211,6 @@ globs: **/*.java
 
   - ### 5.2 Integration Testing
 
-    - **Testcontainers:** Use Testcontainers to create lightweight, disposable instances of databases and other services for integration testing.
     - **Spring Boot Test:** Use Spring Boot's testing support for integration testing Spring applications.
 
   - ### 5.3 End-to-End Testing

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN" monitorInterval="30">
+    <Properties>
+        <!-- Single consistent pattern for all logging -->
+        <Property name="LOG_PATTERN">[%d{HH:mm:ss.SSS}] [%t] %-5level %logger{36} - %msg%n</Property>
+        <Property name="LOG_FILE_PATH">logs/application.log</Property>
+    </Properties>
+
+    <Appenders>
+        <!-- Console Appender -->
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+        </Console>
+
+        <!-- Rolling File Appender -->
+        <RollingRandomAccessFile name="File"
+                               fileName="${LOG_FILE_PATH}"
+                               filePattern="logs/archive/application-%d{yyyy-MM-dd}-%i.log.gz"
+                               append="true">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy/>
+                <SizeBasedTriggeringPolicy size="100 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="30"/>
+        </RollingRandomAccessFile>
+    </Appenders>
+
+    <Loggers>
+        <!-- Configuration loading loggers -->
+        <Logger name="com.example.shelldemo.config.YamlConfigReader" level="DEBUG" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="File"/>
+        </Logger>
+        <Logger name="com.example.shelldemo.config.DatabaseProperties" level="DEBUG" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="File"/>
+        </Logger>
+
+        <!-- Application Loggers -->
+        <Logger name="com.example.shelldemo" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="File"/>
+        </Logger>
+
+        <!-- Framework Loggers -->
+        <Logger name="org.apache.logging.log4j" level="WARN" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+
+        <!-- Root Logger -->
+        <Root level="INFO">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="File"/>
+        </Root>
+    </Loggers>
+</Configuration> 
