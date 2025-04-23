@@ -10,20 +10,25 @@ databases:
     oracle:
       defaultPort: 1521
       templates:
-        thin: "jdbc:oracle:thin:@//%s:%d/%s"
-        ldap: "jdbc:oracle:thin:@ldap://%s:%d/%s,cn=OracleContext,dc=oracle,dc=com"
-      properties:
-        ldap:
-          java.naming.factory.initial: "com.sun.jndi.ldap.LdapCtxFactory"
-          java.naming.security.authentication: "simple"
-          java.naming.security.principal: "cn=admin,dc=example,dc=com"
-          java.naming.security.credentials: "admin123"
-      defaultType: "ldap"
-    
+        jdbc: 
+          default: "jdbc:oracle:thin:@//%s:%d/%s"
+          thin: "jdbc:oracle:thin:@//%s:%d/%s"
+          ldap: "jdbc:oracle:thin:@ldap://%s:%d/%s,cn=OracleContext,dc=oracle,dc=com"
+            properties:
+              java.naming.factory.initial: "com.sun.jndi.ldap.LdapCtxFactory"
+              java.naming.security.authentication: "simple"
+              java.naming.security.principal: "cn=admin,dc=example,dc=com"
+              java.naming.security.credentials: "admin123"
+        sql: 
+          procedure: "{ ? = call %s(%s) }"
+
     sqlserver:
       defaultPort: 1433
       templates:
-        default: "jdbc:sqlserver://%s:%d;databaseName=%s"
+        jdbc:
+          default: "jdbc:sqlserver://%s:%d;databaseName=%s"
+        sql:
+          procedure: "{ call %s(%s) }"
       properties:
         loginTimeout: "30"
         encrypt: "true"
@@ -32,7 +37,10 @@ databases:
     postgresql:
       defaultPort: 5432
       templates:
-        default: "jdbc:postgresql://%s:%d/%s"
+        jdbc:
+          default: "jdbc:postgresql://%s:%d/%s"
+        sql:
+          procedure: "{ call %s(%s) }"
       properties:
         ssl: "true"
         sslmode: "verify-full"
@@ -40,7 +48,10 @@ databases:
     mysql:
       defaultPort: 3306
       templates:
-        default: "jdbc:mysql://%s:%d/%s"
+        jdbc:
+          default: "jdbc:mysql://%s:%d/%s"
+        sql:
+          procedure: "{ call %s(%s) }"
       properties:
         useSSL: "true"
         allowPublicKeyRetrieval: "true"

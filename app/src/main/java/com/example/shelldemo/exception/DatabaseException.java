@@ -1,14 +1,14 @@
 package com.example.shelldemo.exception;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Base exception class for all database-related exceptions.
  * Provides common logging and context handling functionality.
  */
 public class DatabaseException extends RuntimeException {
-    private static final Logger logger = LoggerFactory.getLogger(DatabaseException.class);
+    private static final Logger logger = LogManager.getLogger(DatabaseException.class);
     private final String errorCode;
     private final String context;
 

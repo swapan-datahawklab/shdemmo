@@ -1,54 +1,55 @@
 package com.example.shelldemo.connection;
 
-import com.example.shelldemo.config.ConfigurationHolder;
-import com.example.shelldemo.config.ConfigurationException;
-import com.example.shelldemo.exception.DatabaseConnectionException;
-import com.example.shelldemo.exception.DatabaseTypeException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Collections;
-import java.util.HashMap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.example.shelldemo.exception.DatabaseConnectionException;
 
 /**
  * Factory class for creating database connections.
  * Supports different database types and connection methods using templates.
  */
 public class DatabaseConnectionFactory {
-    private static final Logger logger = LoggerFactory.getLogger(DatabaseConnectionFactory.class);
-    private final ConfigurationHolder configHolder;
+    private static final Logger logger = LogManager.getLogger(DatabaseConnectionFactory.class);
 
-    public DatabaseConnectionFactory(ConfigurationHolder configHolder) {
-        this.configHolder = configHolder;
-    }
+    // Standard database connection templates
+    private static final Map<String, String> CONNECTION_TEMPLATES = Map.of(
+        "postgresql", "jdbc:postgresql://%s:%d/%s",
+        "mysql", "jdbc:mysql://%s:%d/%s",
+        "oracle", "jdbc:oracle:thin:@//%s:%d/%s",
+        "sqlserver", "jdbc:sqlserver://%s:%d;databaseName=%s"
+    );
 
-    /**
-     * Common/standard database types supported by this factory.
-     * Used for validation when no configuration is available.
-     */
-    private static final Map<String, Integer> COMMON_DB_TYPES = Map.of(
-        "oracle", 1521,
+    // Default ports for each database type
+    private static final Map<String, Integer> DEFAULT_PORTS = Map.of(
         "postgresql", 5432,
         "mysql", 3306,
+        "oracle", 1521,
         "sqlserver", 1433
     );
 
-    /**
-     * Check if a database type is a common standard one.
-     * Used when configHolder is null.
-     * 
-     * @param dbType the database type to check
-     * @return true if the type is a common database type
-     */
-    private boolean isCommonDbType(String dbType) {
-        return COMMON_DB_TYPES.containsKey(dbType);
+    // Default connection properties for each database type
+    private static final Map<String, Properties> DEFAULT_PROPERTIES = Map.of(
+        "postgresql", createProperties("ssl", "true", "sslmode", "verify-full"),
+        "mysql", createProperties("useSSL", "true", "allowPublicKeyRetrieval", "true", "serverTimezone", "UTC"),
+        "oracle", new Properties(),
+        "sqlserver", createProperties("encrypt", "true", "trustServerCertificate", "true")
+    );
+
+    private static Properties createProperties(String... keyValues) {
+        Properties props = new Properties();
+        for (int i = 0; i < keyValues.length; i += 2) {
+            props.setProperty(keyValues[i], keyValues[i + 1]);
+        }
+        return props;
     }
-    
+
     /**
      * Validates and enriches a database connection configuration.
      * 
@@ -58,37 +59,16 @@ public class DatabaseConnectionFactory {
      * @throws DatabaseConnectionException if validation fails
      */
     public ConnectionConfig validateAndEnrichConfig(String dbType, ConnectionConfig config) {
-        logger.debug("Validating and enriching connection config for database type: {}", dbType);
-        
-        // Validate database type - but handle the case when configHolder is null
         String validatedDbType = dbType.trim().toLowerCase();
-        
-        // When configHolder is null (direct connection mode), use a simple validation
-        if (configHolder == null) {
-            // Simple validation against common database types when no config is available
-            if (!isCommonDbType(validatedDbType)) {
-                String errorMessage = "Invalid or unsupported database type: " + validatedDbType;
-                logger.error(errorMessage);
-                throw new DatabaseConnectionException(errorMessage);
-            }
-        } else {
-            // Normal validation when we have configHolder
-            if (!isValidDbType(validatedDbType)) {
-                String errorMessage = "Invalid database type: " + validatedDbType;
-                logger.error(errorMessage);
-                throw new DatabaseConnectionException(errorMessage);
-            }
+        if (!CONNECTION_TEMPLATES.containsKey(validatedDbType)) {
+            String errorMessage = "Invalid or unsupported database type: " + validatedDbType;
+            logger.error(errorMessage);
+            throw new DatabaseConnectionException(errorMessage);
         }
 
         // Set up connection configuration
         if (config.getPort() <= 0) {
-            // Use common default ports when config holder is null
-            if (configHolder == null) {
-                Integer defaultPort = COMMON_DB_TYPES.get(validatedDbType);
-                config.setPort(defaultPort != null ? defaultPort : 0);
-            } else {
-                config.setPort(getDefaultPort(validatedDbType));
-            }
+            config.setPort(DEFAULT_PORTS.get(validatedDbType));
         }
         config.setDbType(validatedDbType);
         
@@ -110,7 +90,6 @@ public class DatabaseConnectionFactory {
             throw new DatabaseConnectionException("Database service name/database name must be specified");
         }
         
-        logger.debug("Connection configuration validated and enriched successfully");
         return config;
     }
 
@@ -123,12 +102,28 @@ public class DatabaseConnectionFactory {
      */
     public Connection getConnection(ConnectionConfig config) throws SQLException {
         String dbType = config.getDbType().toLowerCase();
-        if (!configHolder.isValidDbType(dbType)) {
-            throw new DatabaseTypeException("Unsupported database type: " + dbType, DatabaseTypeException.ERROR_CODE_UNSUPPORTED);
+        if (!CONNECTION_TEMPLATES.containsKey(dbType)) {
+            throw new DatabaseConnectionException("Unsupported database type: " + dbType);
         }
 
-        String connectionUrl = getConnectionUrl(config);
-        Properties props = getConnectionProperties(config);
+        // Set default port if not specified
+        if (config.getPort() <= 0) {
+            config.setPort(DEFAULT_PORTS.get(dbType));
+        }
+
+        // Generate connection URL
+        String connectionUrl = String.format(
+            CONNECTION_TEMPLATES.get(dbType),
+            config.getHost(),
+            config.getPort(),
+            config.getServiceName()
+        );
+
+        // Setup connection properties
+        Properties props = new Properties();
+        props.putAll(DEFAULT_PROPERTIES.getOrDefault(dbType, new Properties()));
+        props.setProperty("user", config.getUsername());
+        props.setProperty("password", config.getPassword());
 
         logger.info("Attempting to connect to {} using URL: {}", dbType, connectionUrl);
         try {
@@ -151,129 +146,100 @@ public class DatabaseConnectionFactory {
                 logger.warn("OracleConnectionException not available, falling back to DatabaseConnectionException");
             }
         }
-        return new DatabaseConnectionException("Failed to connect to database", e, DatabaseConnectionException.ERROR_CODE_CONNECTION_FAILED);
+        return new DatabaseConnectionException("Failed to connect to database", e);
     }
 
     private String determineOracleErrorCode(SQLException e, ConnectionConfig config) {
-        String message = e.getMessage().toLowerCase();
-        String connectionType = config.getConnectionType();
-        
-        if (message.contains("ldap") || ("ldap".equals(connectionType) && message.contains("connection"))) {
-            return "ORA_CONN_002"; // ERROR_CODE_INVALID_LDAP
-        } else if (message.contains("thin") || ("thin".equals(connectionType) && message.contains("connection"))) {
-            return "ORA_CONN_001"; // ERROR_CODE_INVALID_THIN
-        } else if (message.contains("service")) {
-            return "ORA_CONN_004"; // ERROR_CODE_INVALID_SERVICE
+        // Extract Oracle-specific error code
+        String errorCode = "UNKNOWN";
+        if (e.getMessage() != null && e.getMessage().contains("ORA-")) {
+            errorCode = e.getMessage().substring(
+                e.getMessage().indexOf("ORA-"),
+                e.getMessage().indexOf("ORA-") + 9
+            );
         }
-        return "ORA_CONN_001"; // Default to INVALID_THIN
-    }
-
-    private String getConnectionUrl(ConnectionConfig config) {
-        String dbType = config.getDbType().toLowerCase();
-        String connectionType = config.getConnectionType() != null ? config.getConnectionType().toLowerCase() : "thin";
-
-        Map<String, Map<String, Object>> dbTypes = configHolder.getDatabaseTypes();
-        Map<String, Object> typeConfig = dbTypes.get(dbType);
-        
-        if (typeConfig == null) {
-            throw new DatabaseConnectionException("No configuration found for database type: " + dbType,
-                DatabaseConnectionException.ERROR_CODE_INVALID_CONFIG);
-        }
-
-        @SuppressWarnings("unchecked")
-        Map<String, String> templates = typeConfig.get("templates") instanceof Map ? 
-            new HashMap<>((Map<String, String>) typeConfig.get("templates")) : 
-            Collections.emptyMap();
-
-        String urlTemplate = templates.get(connectionType);
-        if (urlTemplate == null) {
-            urlTemplate = (String) typeConfig.get("urlTemplate");
-            if (urlTemplate == null) {
-                throw new DatabaseConnectionException(
-                    String.format("No URL template configured for database type: %s and connection type: %s", dbType, connectionType),
-                    DatabaseConnectionException.ERROR_CODE_INVALID_CONFIG
-                );
-            }
-        }
-
-        return String.format(urlTemplate, config.getHost(), config.getPort(), config.getServiceName());
-    }
-
-    private Properties getConnectionProperties(ConnectionConfig config) {
-        String dbType = config.getDbType().toLowerCase();
-        Properties props = new Properties();
-        
-        Map<String, Map<String, Object>> dbTypes = configHolder.getDatabaseTypes();
-        Map<String, Object> typeConfig = dbTypes.get(dbType);
-        
-        if (typeConfig == null) {
-            throw new DatabaseConnectionException("No configuration found for database type: " + dbType,
-                DatabaseConnectionException.ERROR_CODE_INVALID_CONFIG);
-        }
-
-        // Get connection type specific properties first
-        String connectionType = config.getConnectionType() != null ? config.getConnectionType().toLowerCase() : "default";
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = typeConfig.get("properties") instanceof Map ?
-            new HashMap<>((Map<String, Object>) typeConfig.get("properties")) :
-            Collections.emptyMap();
-
-        // If there are connection-type specific properties, apply them
-        @SuppressWarnings("unchecked")
-        Map<String, Object> typeProperties = properties.get(connectionType) instanceof Map ?
-            (Map<String, Object>) properties.get(connectionType) :
-            Collections.emptyMap();
-            
-        // Apply connection-type specific properties
-        typeProperties.forEach((key, value) -> props.put(key, value.toString()));
-        
-        // Apply common properties for this database type
-        properties.forEach((key, value) -> {
-            if (!(value instanceof Map)) {  // Skip nested property maps
-                props.put(key, value.toString());
-            }
-        });
-
-        // Add authentication properties if provided
-        if (config.getUsername() != null) {
-            props.setProperty("user", config.getUsername());
-        }
-        if (config.getPassword() != null) {
-            props.setProperty("password", config.getPassword());
-        }
-
-        return props;
+        return errorCode;
     }
 
     /**
-     * Validates if the given database type is supported.
-     *
-     * @param dbType The database type to validate
-     * @return true if the database type is valid, false otherwise
+     * Validates a PL/SQL block for syntax without executing it.
+     * 
+     * @param connection The database connection
+     * @param plsql The PL/SQL block to validate
+     * @throws SQLException if validation fails
      */
-    public boolean isValidDbType(String dbType) {
-        logger.trace("Validating database type: {}", dbType);
-        try {
-            return configHolder.isValidDbType(dbType);
-        } catch (ConfigurationException e) {
-            logger.error("Failed to validate database type: {}", e.getMessage(), e);
-            throw new DatabaseTypeException("Failed to validate database type", e);
+    public void validatePlsqlSyntax(Connection connection, String plsql, String dbType, String username) throws SQLException {
+        String validationQuery = switch (dbType.toLowerCase()) {
+            case "oracle" -> 
+                "BEGIN " +
+                "    DBMS_UTILITY.COMPILE_SCHEMA('" + username.toUpperCase() + "', FALSE);" +
+                "    " + plsql + " " +
+                "END;";
+            case "postgresql" -> 
+                "DO $$ BEGIN " + plsql + " END $$;";
+            case "sqlserver" ->
+                "EXEC sp_validateloginname " + plsql;
+            default -> throw new SQLException("PL/SQL validation not supported for " + dbType);
+        };
+        
+        try (var stmt = connection.prepareStatement(validationQuery)) {
+            stmt.setQueryTimeout(10);
+            stmt.executeQuery();
         }
     }
 
     /**
-     * Gets the default port for the given database type.
-     *
-     * @param dbType The database type
-     * @return The default port number
+     * Validates a SQL statement for syntax without executing it.
+     * 
+     * @param connection The database connection
+     * @param sql The SQL statement to validate
+     * @throws SQLException if validation fails
      */
-    public int getDefaultPort(String dbType) {
-        logger.trace("Getting default port for database type: {}", dbType);
-        try {
-            return configHolder.getDefaultPort(dbType);
-        } catch (ConfigurationException e) {
-            logger.error("Failed to get default port: {}", e.getMessage(), e);
-            throw new DatabaseTypeException("Failed to get default port", e);
+    public void validateSqlSyntax(Connection connection, String sql, String dbType) throws SQLException {
+        String validationQuery = switch (dbType.toLowerCase()) {
+            case "oracle" -> 
+                "SELECT 1 FROM DUAL WHERE EXISTS (" + sql + ")";
+            case "postgresql", "mysql" -> 
+                "EXPLAIN " + sql;
+            case "sqlserver" ->
+                "SET PARSEONLY ON; " + sql + "; SET PARSEONLY OFF;";
+            default -> throw new SQLException("SQL validation not supported for " + dbType);
+        };
+        
+        try (var stmt = connection.prepareStatement(validationQuery)) {
+            stmt.setQueryTimeout(10);
+            stmt.executeQuery();
         }
+    }
+
+    /**
+     * Gets the execution plan for a SQL statement without executing it.
+     * 
+     * @param connection The database connection
+     * @param sql The SQL statement to explain
+     * @return The execution plan as a string
+     * @throws SQLException if explain plan fails
+     */
+    public String getExplainPlan(Connection connection, String sql, String dbType) throws SQLException {
+        String explainQuery = switch (dbType.toLowerCase()) {
+            case "oracle" -> 
+                "EXPLAIN PLAN FOR " + sql;
+            case "postgresql" -> 
+                "EXPLAIN (ANALYZE false, COSTS true, FORMAT TEXT) " + sql;
+            case "mysql" -> 
+                "EXPLAIN FORMAT=TREE " + sql;
+            case "sqlserver" ->
+                "SET SHOWPLAN_XML ON; " + sql + "; SET SHOWPLAN_XML OFF;";
+            default -> throw new SQLException("Explain plan not supported for " + dbType);
+        };
+        
+        StringBuilder plan = new StringBuilder();
+        try (var stmt = connection.prepareStatement(explainQuery);
+             var rs = stmt.executeQuery()) {
+            while (rs.next()) {
+                plan.append(rs.getString(1)).append("\n");
+            }
+        }
+        return plan.toString();
     }
 }

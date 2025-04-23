@@ -1,13 +1,13 @@
 package com.example.shelldemo.parser;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Shared utility methods for parsing operations.
  */
 public final class ParserUtils {
-    private static final Logger logger = LoggerFactory.getLogger(ParserUtils.class);
+    private static final Logger logger = LogManager.getLogger(ParserUtils.class);
 
     private ParserUtils() {
         throw new AssertionError("Utility class - do not instantiate");
@@ -21,13 +21,10 @@ public final class ParserUtils {
      * @throws IllegalArgumentException if validation fails
      */
     public static void validateNotEmpty(String value, String fieldName) {
-        logger.trace("Validating field: {}", fieldName);
         if (value == null || value.trim().isEmpty()) {
             String errorMessage = fieldName + " cannot be null or empty";
-            logger.error(errorMessage);
             throw new IllegalArgumentException(errorMessage);
         }
-        logger.trace("Field {} validation successful", fieldName);
     }
 
     /**

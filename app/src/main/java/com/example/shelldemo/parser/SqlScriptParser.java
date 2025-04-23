@@ -1,7 +1,7 @@
 package com.example.shelldemo.parser;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,12 +18,14 @@ import java.util.regex.Pattern;
  * - Quoted strings (to avoid parsing comments or delimiters within strings)
  */
 public final class SqlScriptParser {
-    private static final Logger logger = LoggerFactory.getLogger(SqlScriptParser.class);
-    private static final String STATEMENT_DELIMITER = ";";
+    private static final Logger logger = LogManager.getLogger(SqlScriptParser.class);
+    private static final String SEMICOLON_DELIMITER = ";";
+    private static final String FORWARD_SLASH_DELIMITER = "/";
     private static final String SINGLE_LINE_COMMENT = "--";
     private static final String MULTI_LINE_COMMENT_START = "/*";
     private static final String MULTI_LINE_COMMENT_END = "*/";
     private static final Pattern WHITESPACE = Pattern.compile("^\\s*$");
+    private static final Pattern PLSQL_START = Pattern.compile("^(BEGIN|DECLARE|CREATE\\s+OR\\s+REPLACE\\s+(FUNCTION|PROCEDURE|TRIGGER|PACKAGE))\\s+.*", Pattern.CASE_INSENSITIVE);
 
     private SqlScriptParser() {
         throw new AssertionError("Utility class - do not instantiate");
@@ -38,14 +40,12 @@ public final class SqlScriptParser {
      * @throws IllegalArgumentException if file is null or doesn't exist
      */
     public static List<String> parse(File scriptFile) throws IOException {
-        logger.debug("Starting to parse SQL script file: {}", scriptFile.getPath());
         validateFile(scriptFile);
         
         List<String> statements = new ArrayList<>();
         ParseState state = new ParseState();
 
         List<String> lines = Files.readAllLines(scriptFile.toPath());
-        logger.debug("Read {} lines from script file", lines.size());
         
         for (int lineNum = 0; lineNum < lines.size(); lineNum++) {
             try {
@@ -64,107 +64,136 @@ public final class SqlScriptParser {
     }
 
     private static void validateFile(File scriptFile) {
-        logger.trace("Validating script file");
         if (scriptFile == null) {
             String errorMessage = "Script file cannot be null";
-            logger.error(errorMessage);
             throw new IllegalArgumentException(errorMessage);
         }
         if (!scriptFile.exists()) {
             String errorMessage = "Script file does not exist: " + scriptFile.getPath();
-            logger.error(errorMessage);
             throw new IllegalArgumentException(errorMessage);
         }
         if (!scriptFile.isFile()) {
             String errorMessage = "Path is not a file: " + scriptFile.getPath();
-            logger.error(errorMessage);
             throw new IllegalArgumentException(errorMessage);
         }
-        logger.trace("Script file validation successful");
     }
 
     private static void processLine(String line, ParseState state, List<String> statements) {
+        String processedLine = line.trim();
+        
+        // Handle empty lines
         if (WHITESPACE.matcher(line).matches()) {
-            logger.trace("Skipping whitespace line");
+            if (state.hasContent) {
+                state.currentComments.append("\n");
+            }
             return;
         }
 
-        String processedLine = line.trim();
-        logger.trace("Processing line: {}", processedLine);
-        
         // Handle single-line comments
         if (processedLine.startsWith(SINGLE_LINE_COMMENT)) {
-            logger.trace("Skipping single-line comment");
+            state.currentComments.append(line).append("\n");
             return;
         }
 
         // Handle multi-line comments
         if (state.inMultilineComment) {
-            logger.trace("In multi-line comment, looking for end marker");
+            state.currentComments.append(line).append("\n");
             int endIndex = processedLine.indexOf(MULTI_LINE_COMMENT_END);
             if (endIndex == -1) {
-                logger.trace("No end marker found, skipping line");
                 return;
             }
             processedLine = processedLine.substring(endIndex + MULTI_LINE_COMMENT_END.length()).trim();
             state.inMultilineComment = false;
-            logger.trace("Found end marker, remaining line: {}", processedLine);
+            if (processedLine.isEmpty()) {
+                return;
+            }
         }
 
         int startIndex = processedLine.indexOf(MULTI_LINE_COMMENT_START);
         while (startIndex != -1) {
-            logger.trace("Found multi-line comment start at position {}", startIndex);
+            if (startIndex > 0) {
+                state.currentComments.append(line.substring(0, line.indexOf(MULTI_LINE_COMMENT_START))).append("\n");
+            }
             int endIndex = processedLine.indexOf(MULTI_LINE_COMMENT_END, startIndex);
             if (endIndex == -1) {
                 state.inMultilineComment = true;
+                state.currentComments.append(line.substring(line.indexOf(MULTI_LINE_COMMENT_START))).append("\n");
                 processedLine = processedLine.substring(0, startIndex).trim();
-                logger.trace("No end marker found, truncating line to: {}", processedLine);
                 break;
             }
-            // Remove the comment and continue checking for more comments
+            state.currentComments.append(line.substring(line.indexOf(MULTI_LINE_COMMENT_START), 
+                                                      line.indexOf(MULTI_LINE_COMMENT_END) + 2)).append("\n");
             processedLine = (processedLine.substring(0, startIndex) + " " + 
                            processedLine.substring(endIndex + MULTI_LINE_COMMENT_END.length())).trim();
-            logger.trace("Removed comment, line is now: {}", processedLine);
             startIndex = processedLine.indexOf(MULTI_LINE_COMMENT_START);
         }
 
+        // Check if we're starting a PL/SQL block
+        if (!state.inPlsqlBlock && PLSQL_START.matcher(processedLine).matches()) {
+            state.inPlsqlBlock = true;
+        }
+
+        // Handle forward slash delimiter on a line by itself
+        if (FORWARD_SLASH_DELIMITER.equals(processedLine)) {
+            if (state.inPlsqlBlock) {
+                if (!state.currentStatement.toString().trim().isEmpty()) {
+                    addStatement(state, statements);
+                    state.inPlsqlBlock = false;
+                    state.hasContent = false;
+                }
+            }
+            return;
+        }
+
         if (!processedLine.isEmpty()) {
-            state.currentStatement.append(processedLine).append(" ");
-            logger.trace("Added line to current statement");
-            if (processedLine.endsWith(STATEMENT_DELIMITER)) {
-                logger.debug("Found statement delimiter, adding statement to list");
+            // Add accumulated comments if this is the start of a new statement
+            if (!state.hasContent && state.currentComments.length() > 0) {
+                state.currentStatement.append(state.currentComments);
+                state.currentComments.setLength(0);
+            }
+            
+            state.hasContent = true;
+            state.currentStatement.append(processedLine).append("\n");
+            
+            // Only treat semicolon as delimiter if we're not in a PL/SQL block
+            if (!state.inPlsqlBlock && processedLine.endsWith(SEMICOLON_DELIMITER)) {
                 addStatement(state, statements);
+                state.hasContent = false;
             }
         }
     }
 
     private static void addStatement(ParseState state, List<String> statements) {
         String sql = state.currentStatement.toString().trim();
-        // Remove the trailing delimiter
-        sql = sql.substring(0, sql.length() - STATEMENT_DELIMITER.length()).trim();
+        // Remove the trailing semicolon only for non-PL/SQL statements
+        if (!state.inPlsqlBlock && sql.endsWith(SEMICOLON_DELIMITER)) {
+            sql = sql.substring(0, sql.length() - SEMICOLON_DELIMITER.length()).trim();
+        }
         if (!sql.isEmpty()) {
-            logger.debug("Adding SQL statement: {}", sql);
             statements.add(sql);
         }
         state.currentStatement.setLength(0);
-        logger.trace("Reset current statement buffer");
+        state.currentComments.setLength(0);
     }
 
     private static void addFinalStatement(ParseState state, List<String> statements) {
-        String finalSql = state.currentStatement.toString().trim();
-        if (!finalSql.isEmpty()) {
-            logger.debug("Processing final statement");
-            if (finalSql.endsWith(STATEMENT_DELIMITER)) {
-                finalSql = finalSql.substring(0, finalSql.length() - STATEMENT_DELIMITER.length());
+        if (state.currentStatement.length() > 0) {
+            String finalSql = state.currentStatement.toString().trim();
+            if (!finalSql.isEmpty()) {
+                if (!state.inPlsqlBlock && finalSql.endsWith(SEMICOLON_DELIMITER)) {
+                    finalSql = finalSql.substring(0, finalSql.length() - SEMICOLON_DELIMITER.length());
+                }
+                statements.add(finalSql);
             }
-            logger.debug("Adding final SQL statement: {}", finalSql);
-            statements.add(finalSql);
         }
     }
 
     private static class ParseState {
         private final StringBuilder currentStatement = new StringBuilder();
+        private final StringBuilder currentComments = new StringBuilder();
         private boolean inMultilineComment = false;
+        private boolean inPlsqlBlock = false;
+        private boolean hasContent = false;
     }
 
     /**

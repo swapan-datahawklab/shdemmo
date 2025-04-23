@@ -10,14 +10,17 @@ import java.util.List;
 import java.util.Map;
 import java.io.File;
 import java.io.IOException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ServiceLoader;
 import java.sql.Driver;
 import java.sql.DriverManager;
-import java.util.Properties; // Ensure Properties is properly imported
+import java.sql.Statement;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 import com.example.shelldemo.parser.SqlScriptParser;
 import com.example.shelldemo.exception.DatabaseConnectionException;
@@ -25,207 +28,97 @@ import com.example.shelldemo.exception.DatabaseOperationException;
 import com.example.shelldemo.connection.ConnectionConfig;
 import com.example.shelldemo.connection.DatabaseConnectionFactory;
 import com.example.shelldemo.connection.CustomDriver;
+import com.example.shelldemo.error.DatabaseErrorFormatter;
 import com.example.shelldemo.config.ConfigurationHolder;
-import com.example.shelldemo.config.ConfigurationException;
-
+import com.example.shelldemo.validate.DatabaserOperationValidator;
+import com.example.shelldemo.parser.storedproc.StoredProcedureParser;
+import com.example.shelldemo.parser.storedproc.StoredProcedureInfo;
 /**
  * Unified database operations class.
  * Provides common functionality for all database types using JDBC.
  */
 public class UnifiedDatabaseOperation implements AutoCloseable {
-    private static final Logger logger = LoggerFactory.getLogger(UnifiedDatabaseOperation.class);
-    
-    private static final Map<String, String> TEST_QUERIES = Map.of(
-        "oracle", "SELECT 1 FROM DUAL",
-        "postgresql", "SELECT 1",
-        "mysql", "SELECT 1",
-        "sqlserver", "SELECT 1"
-    );
+    private static final Logger logger = LogManager.getLogger(UnifiedDatabaseOperation.class);
 
-    private static final Map<String, String> PROC_CALL_TEMPLATES = Map.of(
-        "oracle", "{call %s(%s)}",
-        "postgresql", "CALL %s(%s)",
-        "mysql", "{call %s(%s)}",
-        "sqlserver", "{call %s(%s)}"
-    );
 
-    private String dbType = null;
-    private ConnectionConfig config;
+    private final String dbType;
+    private final ConnectionConfig config;
     private final Connection connection;
     private final DatabaseConnectionFactory connectionFactory;
+    private final DatabaseErrorFormatter errorFormatter;
+    private final DatabaserOperationValidator validator;
+
+    public static UnifiedDatabaseOperation create(String dbType, ConnectionConfig config) throws DatabaseOperationException {
+        try {
+            return new UnifiedDatabaseOperation(dbType, config);
+        } catch (Exception e) {
+            throw new DatabaseOperationException(
+                "Failed to create database operation for type: " + dbType,
+                e,
+                DatabaseOperationException.ERROR_CODE_TRANSACTION_FAILED
+            );
+        }
+    }
 
     public UnifiedDatabaseOperation(String dbType, ConnectionConfig config) {
         logger.debug("Creating UnifiedDatabaseOperation for type: {}", dbType);
+        
+        this.dbType = dbType.toLowerCase();
+        this.config = config;
+        this.connectionFactory = new DatabaseConnectionFactory();
+        this.errorFormatter = new DatabaseErrorFormatter(dbType);
+        
         try {
-            // Try to get ConfigurationHolder, but don't fail if it's not available when direct config is provided
-            ConfigurationHolder configHolder = null;
-            try {
-                configHolder = ConfigurationHolder.getInstance();
-            } catch (ConfigurationException e) {
-                if (config == null) {
-                    // We need config from ConfigurationHolder but it failed
-                    throw e;
-                } else {
-                    // We have direct config, log and continue
-                    logger.debug("ConfigurationHolder not available but using direct config: {}", e.getMessage());
-                }
-            }
-            
-            this.connectionFactory = new DatabaseConnectionFactory(configHolder);
-            
-            // When a direct configuration is provided
-            if (config != null) {
-                // Validate database type against our known types
-                String validatedDbType = dbType.trim().toLowerCase();
-                if (!TEST_QUERIES.containsKey(validatedDbType)) {
-                    // If not in our known types, try to validate through connection factory if possible
-                    if (configHolder != null) {
-                        try {
-                            this.config = connectionFactory.validateAndEnrichConfig(dbType, config);
-                            this.dbType = this.config.getDbType(); // Use the validated dbType
-                        } catch (Exception e) {
-                            logger.debug("Could not validate/enrich config, using direct values: {}", e.getMessage());
-                            this.config = config;
-                            this.config.setDbType(validatedDbType);
-                            if (this.dbType == null) {
-                                this.config.setDbType(validatedDbType);
-                            }
-                        }
-                    } else {
-                        // No config holder, use direct values
-                        this.config = config;
-                        this.config.setDbType(validatedDbType);
-                        this.dbType = validatedDbType;
-                    }
-                } else {
-                    // Known database type, use direct config
-                    this.config = config;
-                    this.config.setDbType(validatedDbType);
-                    this.dbType = validatedDbType;
-                }
-                
-                // Create connection with the config
-                this.connection = createConnection();
-                logger.info("Database operation initialized successfully with direct config for {}", this.dbType);
-            } else {
-                // No direct config provided, use ConfigurationHolder to look up from configuration
-                // ConfigurationHolder instance is already handled earlier, no need to reassign connectionFactory
-                
-                // Handle null config case (used in some test scenarios)
-                String validatedDbType = dbType.trim().toLowerCase();
-                if (!connectionFactory.isValidDbType(validatedDbType)) {
-                    String errorMessage = "Invalid database type: " + validatedDbType;
-                    logger.error(errorMessage);
-                    throw new DatabaseConnectionException(errorMessage);
-                }
-                this.dbType = validatedDbType;
-                this.config = null;
-                this.connection = null;
-            }
-        } catch (ConfigurationException e) {
-            String errorMessage = "Failed to initialize database configuration";
-            logger.error(errorMessage, e);
-            throw new DatabaseConnectionException(errorMessage, e);
+            connectionFactory.validateAndEnrichConfig(this.dbType, this.config);
+        } catch (DatabaseConnectionException e) {
+            throw new DatabaseConnectionException("Invalid database type: " + this.dbType, e);
         }
+        
+        this.connection = createConnection();
+        this.validator = new DatabaserOperationValidator(dbType);
+        logger.info("Database operation initialized successfully for {}", this.dbType);
     }
 
     private Connection createConnection() {
         try {
-            logger.debug("Attempting to create database connection to {}:{}", config.getHost(), config.getPort());
-            Connection conn = connectionFactory.getConnection(config);
-            logger.info("Successfully established database connection");
-            return conn;
+            return connectionFactory.getConnection(config);
         } catch (SQLException e) {
-            logger.error("Failed to create database connection: {}", e.getMessage());
             throw new DatabaseConnectionException("Failed to create database connection", e);
         }
     }
-
-    public static UnifiedDatabaseOperation create(String dbType, ConnectionConfig config) throws IOException {
+    private StoredProcedureInfo parseStoredProcedure(String procedureName) 
+            throws DatabaseOperationException {
         try {
-            return new UnifiedDatabaseOperation(dbType, config);
-        } catch (DatabaseConnectionException e) {
-            // If the error is about configuration not found and we have a direct config
-            if (e.getMessage().contains("Failed to initialize database configuration") && config != null) {
-                logger.info("Creating database operation with direct configuration parameters, bypassing configuration lookup");
-                
-                // Since we're having issues with constructor and final fields, use a different approach
-                // that doesn't involve creating a subclass or using reflection
-                
-                // Force config to contain valid database type
-                String validatedDbType = dbType.trim().toLowerCase();
-                
-                // Create a simple wrapper that redirects to the appropriate JDBC methods
-                // First, let's create the connection
-                try {
-                    String url = String.format("jdbc:%s://%s:%d/%s", 
-                                 validatedDbType, 
-                                 config.getHost(), 
-                                 config.getPort(), 
-                                 config.getServiceName());
-                    
-                    logger.info("Attempting direct JDBC connection to: {}", url);
-                    
-                    Properties props = new Properties();
-                    props.setProperty("user", config.getUsername());
-                    props.setProperty("password", config.getPassword());
-                    
-                    Connection conn = DriverManager.getConnection(url, props);
-                    logger.info("Successfully connected via direct JDBC");
-                    
-                    // Now use the lower-level JDBC API without our complex hierarchy
-                    // This is a simple wrapper in the same process - just enough to pass tests
-                    return new UnifiedDatabaseOperation(validatedDbType, config) {
-                        // The constructor will fail but we'll override the necessary methods
-                        
-                        private final Connection directConn = conn;
-                        
-                        @Override
-                        public void close() {
-                            try {
-                                if (directConn != null && !directConn.isClosed()) {
-                                    logger.debug("Closing direct database connection");
-                                    directConn.close();
-                                    logger.info("Direct database connection closed successfully");
-                                }
-                            } catch (SQLException e) {
-                                logger.error("Failed to close direct database connection: {}", e.getMessage());
-                                throw new DatabaseConnectionException("Failed to close direct database connection", e);
-                            }
-                        }
-                        
-                        @Override
-                        public <T> T execute(SqlFunction<T> operation) {
-                            try {
-                                return operation.apply(directConn);
-                            } catch (SQLException e) {
-                                throw new DatabaseOperationException("Error executing on direct connection: " + e.getMessage(), e);
-                            }
-                        }
-                        
-                        @Override
-                        public String getDatabaseType() {
-                            return validatedDbType;
-                        }
-                    };
-                } catch (SQLException sqlEx) {
-                    logger.error("Failed to create direct database connection: {}", sqlEx.getMessage());
-                    throw new DatabaseConnectionException("Failed to create direct database connection", sqlEx);
-                }
-            } else {
-                // Other errors should be propagated
-                throw e;
-            }
+            return StoredProcedureParser.parse(procedureName);
+        } catch (IllegalArgumentException e) {
+            throw new DatabaseOperationException(
+                "Failed to parse stored procedure: " + procedureName,
+                e,
+                DatabaseOperationException.ERROR_CODE_PROCEDURE_FAILED
+            );
         }
     }
     
-
-    public String getDatabaseType() {
-        return dbType;
+    private List<String> parseSqlFile(File scriptFile) 
+            throws DatabaseOperationException {
+        try {
+            return SqlScriptParser.parse(scriptFile);
+        } catch (IOException e) {
+            throw new DatabaseOperationException(
+                "Failed to parse SQL file: " + scriptFile.getName(),
+                e,
+                DatabaseOperationException.ERROR_CODE_QUERY_FAILED
+            );
+        }
     }
 
-    public ConnectionConfig getConnectionConfig() {
-        return config;
+    public String getExplainPlan(String sql) throws SQLException {
+        return validator.getExplainPlan(connection, sql);
+    }
+
+    public void validateScript(File scriptFile, boolean showExplainPlan) throws IOException, SQLException {
+        logger.info("Starting validation of {}", scriptFile.getName());
+        validator.validateScript(connection, scriptFile.getPath(), showExplainPlan);
     }
 
     @FunctionalInterface
@@ -237,47 +130,8 @@ public class UnifiedDatabaseOperation implements AutoCloseable {
         try {
             return operation.apply(connection);
         } catch (SQLException e) {
-            throw new DatabaseOperationException(formatDatabaseError(e), e);
+            throw new DatabaseOperationException(errorFormatter.formatError(e), e  );
         }
-    }
-
-    private String formatDatabaseError(SQLException e) {
-        switch (dbType) {
-            case "oracle":
-                return formatOracleError(e);
-            case "postgresql":
-                return formatPostgresError(e);
-            case "mysql":
-                return formatMySqlError(e);
-            case "sqlserver":
-                return formatSqlServerError(e);
-            default:
-                return e.getMessage();
-        }
-    }
-
-    private String formatOracleError(SQLException e) {
-        String message = e.getMessage();
-        int oraIndex = message.indexOf("ORA-");
-        if (oraIndex >= 0) {
-            int endIndex = message.indexOf(":", oraIndex);
-            String oraCode = endIndex > oraIndex ? message.substring(oraIndex, endIndex) : message.substring(oraIndex);
-            String errorDetails = message.substring(endIndex + 1).trim();
-            return String.format("%s: %s", oraCode, errorDetails);
-        }
-        return message;
-    }
-
-    private String formatPostgresError(SQLException e) {
-        return String.format("PostgreSQL Error %s: %s", e.getSQLState(), e.getMessage());
-    }
-
-    private String formatMySqlError(SQLException e) {
-        return String.format("MySQL Error %d: %s", e.getErrorCode(), e.getMessage());
-    }
-
-    private String formatSqlServerError(SQLException e) {
-        return String.format("SQL Server Error %d: %s", e.getErrorCode(), e.getMessage());
     }
 
     public List<Map<String, Object>> executeQuery(String sql, Object... params) {
@@ -287,7 +141,6 @@ public class UnifiedDatabaseOperation implements AutoCloseable {
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 for (int i = 0; i < params.length; i++) {
                     stmt.setObject(i + 1, params[i]);
-                    logger.trace("Setting parameter {}: {}", i + 1, params[i]);
                 }
                 
                 try (ResultSet rs = stmt.executeQuery()) {
@@ -319,7 +172,6 @@ public class UnifiedDatabaseOperation implements AutoCloseable {
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 for (int i = 0; i < params.length; i++) {
                     stmt.setObject(i + 1, params[i]);
-                    logger.trace("Setting parameter {}: {}", i + 1, params[i]);
                 }
                 int affected = stmt.executeUpdate();
                 logger.debug("Update affected {} rows", affected);
@@ -328,18 +180,19 @@ public class UnifiedDatabaseOperation implements AutoCloseable {
         });
     }
 
+
     public Object callStoredProcedure(String procedureName, Object... params) {
         logger.debug("Calling stored procedure: {} with {} parameters", procedureName, params.length);
         return execute(conn -> {
-            String template = PROC_CALL_TEMPLATES.getOrDefault(dbType, "{call %s(%s)}");
+            StoredProcedureInfo procInfo = parseStoredProcedure(procedureName);
+            String template = ConfigurationHolder.getInstance().getSqlTemplate(dbType, "procedure");
             String paramPlaceholders = String.join(",", java.util.Collections.nCopies(params.length, "?"));
-            String callString = String.format(template, procedureName, paramPlaceholders);
+            String callString = String.format(template, procInfo.getName(), paramPlaceholders);
             logger.debug("Prepared procedure call: {}", callString);
             
             try (var stmt = conn.prepareCall(callString)) {
                 for (int i = 0; i < params.length; i++) {
                     stmt.setObject(i + 1, params[i]);
-                    logger.trace("Setting procedure parameter {}: {}", i + 1, params[i]);
                 }
                 
                 boolean hasResultSet = stmt.execute();
@@ -355,19 +208,113 @@ public class UnifiedDatabaseOperation implements AutoCloseable {
         });
     }
 
-    public String getTestQuery() {
-        return TEST_QUERIES.getOrDefault(dbType, "SELECT 1");
+
+    public Object executeStoredProcedure(String procedureName, boolean isFunction, Object... params) throws SQLException {
+        logger.info("Executing stored procedure: {}", procedureName);
+        
+        // Parse and validate the procedure name
+        StoredProcedureInfo procInfo = parseStoredProcedure(procedureName);
+        Object result = callStoredProcedure(procInfo.getName(), params);
+        
+        if (isFunction) {
+            logger.info("Function execution successful, result: {}", result);
+        } else {
+            logger.info("Procedure execution successful");
+        }
+        
+        return result;
     }
 
-    public List<String> parseSqlFile(File scriptFile) throws IOException {
-        return SqlScriptParser.parse(scriptFile);
+
+    public int executeScript(File scriptFile, boolean printStatements) throws IOException, SQLException {
+        logger.info("Executing SQL script: {}", scriptFile.getAbsolutePath());
+        
+        List<String> statements = parseSqlFile(scriptFile);
+        logger.debug("Found {} SQL statements in script", statements.size());
+        
+        int statementCount = 0;
+        try (Statement stmt = connection.createStatement()) {
+            for (String sql : statements) {
+                statementCount++;
+                
+                if (printStatements) {
+                    logger.info("Executing SQL: {}", sql);
+                } else {
+                    logger.debug("Executing SQL statement (length: {})", sql.length());
+                }
+                
+                if (validator.isPLSQL(sql)) {
+                    // Use execute() for PL/SQL blocks since they may contain multiple statements
+                    stmt.execute(sql);
+                    logger.debug("Executed PL/SQL block successfully");
+                } else {
+                    // Use executeUpdate() for regular SQL statements
+                    int affected = stmt.executeUpdate(sql);
+                    logger.debug("SQL statement affected {} rows", affected);
+                }
+            }
+        }
+        
+        logger.info("Script execution completed successfully - {} statements executed", statements.size());
+        return statementCount;
     }
 
-    /**
-     * Loads a JDBC driver from the specified path.
-     *
-     * @param path The path to the JDBC driver JAR file
-     */
+    public int executeScriptWithBatching(File scriptFile, boolean printStatements) throws IOException, SQLException {
+        logger.info("Executing SQL script with batching: {}", scriptFile.getAbsolutePath());
+        
+        List<String> statements = parseSqlFile(scriptFile);
+        logger.debug("Found {} SQL statements in script", statements.size());
+        
+        // Filter out PL/SQL statements - they should be executed via regular executeScript
+        List<String> batchableStatements = statements.stream()
+            .filter(sql -> !validator.isPLSQL(sql))
+            .collect(Collectors.toList());
+        
+        if (batchableStatements.isEmpty()) {
+            logger.info("No batchable statements found, use executeScript instead for PL/SQL blocks");
+            return 0;
+        }
+        
+        boolean originalAutoCommit = connection.getAutoCommit();
+        connection.setAutoCommit(false);
+        
+        try {
+            int totalExecuted = executeBatch(batchableStatements, printStatements);
+            connection.commit();
+            logger.info("Batch execution completed successfully - {} statements executed", totalExecuted);
+            return totalExecuted;
+        } catch (Exception e) {
+            connection.rollback();
+            logger.error("Batch execution failed, rolling back transaction", e);
+            throw new DatabaseOperationException(
+                "Failed to execute script: " + scriptFile.getName(),
+                e,
+                DatabaseOperationException.ERROR_CODE_QUERY_FAILED
+            );
+        } finally {
+            connection.setAutoCommit(originalAutoCommit);
+        }
+    }
+
+    private int executeBatch(List<String> sqlStatements, boolean printStatements) throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            for (String sql : sqlStatements) {
+                if (printStatements) {
+                    logger.info("Adding to batch: {}", sql);
+                }
+                stmt.addBatch(sql);
+            }
+            
+            int[] results = stmt.executeBatch();
+            int totalAffected = Arrays.stream(results)
+                .filter(r -> r != Statement.SUCCESS_NO_INFO)
+                .sum();
+            
+            logger.debug("Batch execution completed. Total rows affected: {}", totalAffected);
+            return sqlStatements.size();
+        }
+    }
+
     public void loadDriverFromPath(String path) {
         logger.debug("Loading JDBC driver from path: {}", path);
         try {
@@ -389,71 +336,16 @@ public class UnifiedDatabaseOperation implements AutoCloseable {
             }
             logger.debug("Driver loading completed successfully");
         } catch (Exception e) {
-            logger.error("Failed to load driver from path: {} - {}", path, e.getMessage(), e);
             throw new DatabaseConnectionException("Failed to load JDBC driver", e);
         }
     }
 
-    /**
-     * Executes a SQL script file.
-     *
-     * @param scriptFile The SQL script file to execute
-     * @param printStatements Whether to print SQL statements
-     * @return The number of statements executed
-     * @throws IOException If there is an error reading the file
-     * @throws SQLException If there is an error executing the SQL
-     */
-    public int executeScript(File scriptFile, boolean printStatements) throws IOException, SQLException {
-        logger.info("Executing SQL script: {}", scriptFile.getAbsolutePath());
-        
-        List<String> statements = parseSqlFile(scriptFile);
-        logger.debug("Found {} SQL statements in script", statements.size());
-        
-        int statementCount = 0;
-        for (String sql : statements) {
-            statementCount++;
-            
-            if (printStatements) {
-                logger.info("Executing SQL: {}", sql);
-            } else {
-                logger.debug("Executing SQL statement (length: {})", sql.length());
-            }
-            
-            executeUpdate(sql);
-        }
-        
-        logger.info("Script execution completed successfully - {} statements executed", statements.size());
-        return statementCount;
-    }
 
-    /**
-     * Executes a stored procedure with the given parameters.
-     *
-     * @param procedureName The name of the stored procedure
-     * @param isFunction Whether the procedure is a function
-     * @param params The parameters for the procedure
-     * @return The result of the procedure execution
-     * @throws SQLException If there is an error executing the procedure
-     */
-    public Object executeStoredProcedure(String procedureName, boolean isFunction, Object... params) throws SQLException {
-        logger.info("Executing stored procedure: {}", procedureName);
-        
-        Object result = callStoredProcedure(procedureName, params);
-        
-        if (isFunction) {
-            logger.info("Function execution successful, result: {}", result);
-        } else {
-            logger.info("Procedure execution successful");
-        }
-        
-        return result;
-    }
 
     @Override
     public void close() {
         try {
             if (connection != null && !connection.isClosed()) {
-                logger.debug("Closing database connection");
                 connection.close();
                 logger.info("Database connection closed successfully");
             }

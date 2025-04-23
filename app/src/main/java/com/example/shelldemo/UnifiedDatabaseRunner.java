@@ -3,21 +3,24 @@ package com.example.shelldemo;
 import java.io.File;
 import java.io.IOException;
 import java.sql.SQLException;
-
 import java.util.List;
 import java.util.concurrent.Callable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import com.example.shelldemo.parser.StoredProcedureParser;
-import com.example.shelldemo.parser.StoredProcedureParser.ProcedureParam;
-import com.example.shelldemo.connection.ConnectionConfig;
-
+import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilder;
+import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFactory;
+import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
+
+import com.example.shelldemo.connection.ConnectionConfig;
+import com.example.shelldemo.parser.storedproc.StoredProcedureParser;
+import com.example.shelldemo.parser.storedproc.ProcedureParam;
 
 
 /**
@@ -27,9 +30,9 @@ import picocli.CommandLine.Parameters;
 @Command(name = "db", mixinStandardHelpOptions = true, version = "1.0",
     description = "Unified Database CLI Tool")
 public class UnifiedDatabaseRunner implements Callable<Integer> {
-    private final Logger logger;
-    private final Logger methodLogger;
+    private static final Logger logger = LogManager.getLogger(UnifiedDatabaseRunner.class);
     private UnifiedDatabaseOperation dbOperation;
+    private final DatabaseOperationFactory operationFactory;
     
     // Add a factory interface
     @FunctionalInterface
@@ -37,21 +40,13 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
         UnifiedDatabaseOperation create(String dbType, ConnectionConfig config) throws IOException;
     }
     
-    private final DatabaseOperationFactory operationFactory;
-    
     // Default constructor for CLI use
     public UnifiedDatabaseRunner() {
-        this(
-            LoggerFactory.getLogger(UnifiedDatabaseRunner.class),
-            LoggerFactory.getLogger(UnifiedDatabaseRunner.class.getName() + ".methods"),
-            UnifiedDatabaseOperation::create
-        );
+        this(UnifiedDatabaseOperation::create);
     }
     
     // Test constructor
-    public UnifiedDatabaseRunner(Logger logger, Logger methodLogger, DatabaseOperationFactory factory) {
-        this.logger = logger;
-        this.methodLogger = methodLogger;
+    public UnifiedDatabaseRunner(DatabaseOperationFactory factory) {
         this.operationFactory = factory;
     }
 
@@ -115,7 +110,32 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
     @Option(names = {"--csv-output"}, description = "Output file for CSV format (if query results exist)")
     private String csvOutputFile;
 
-    private void initializeConfig() throws IOException, SQLException {
+    @Option(names = {"--pre-flight"}, description = "Validate statements without executing them")
+    private boolean preFlight;
+
+    @Option(names = {"--validate-script"}, description = "Show execution plan and validate syntax for each statement during pre-flight")
+    private boolean showExplainPlan;
+
+    private List<ProcedureParam> parseParameters() {
+        logger.debug("Starting parameter parsing");
+        List<ProcedureParam> params = StoredProcedureParser.parse(inputParams, outputParams, ioParams);
+        logger.debug("Successfully parsed {} parameters", params.size());
+        return params;
+    }
+
+    private void validateStatements(File scriptFile) throws IOException, SQLException {
+        logger.info("Starting pre-flight validation of {}", scriptFile.getName());
+        dbOperation.validateScript(scriptFile, showExplainPlan);
+    }
+
+    @Override
+    public Integer call() throws Exception {
+        logger.info("Starting database operation - type: {}, target: {}", dbType, target);
+        
+        if (driverPath != null) {
+            logger.info("Loading custom JDBC driver from: {}", driverPath);
+        }
+
         ConnectionConfig config = new ConnectionConfig();
         config.setHost(host);
         config.setUsername(username);
@@ -125,62 +145,54 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
         config.setDbType(dbType);
         config.setConnectionType(connectionType);
 
-        this.dbOperation = operationFactory.create(dbType, config);
-    }
-
-    private List<ProcedureParam> parseParameters() {
-        methodLogger.debug("[parseParameters] Starting parameter parsing");
-        methodLogger.trace("[parseParameters] Raw inputs - IN: {}, OUT: {}, INOUT: {}", 
-            inputParams, outputParams, ioParams);
-            
-        List<ProcedureParam> params = StoredProcedureParser.parse(inputParams, outputParams, ioParams);
-        methodLogger.debug("[parseParameters] Successfully parsed {} parameters", params.size());
-        methodLogger.trace("[parseParameters] Parsed parameters: {}", params);
-        return params;
-    }
-
-    @Override
-    public Integer call() throws Exception {
-        logger.info("Starting database operation - type: {}, target: {}", dbType, target);
-        methodLogger.debug("[call] Beginning execution with type: {}, target: {}", dbType, target);
-        
-        if (driverPath != null) {
-            logger.info("Loading custom JDBC driver from: {}", driverPath);
-            dbOperation.loadDriverFromPath(driverPath);
-        }
-
-        try {
-            initializeConfig();
+        try (UnifiedDatabaseOperation operation = operationFactory.create(dbType, config)) {
+            this.dbOperation = operation;
             File scriptFile = new File(target);
 
-            if (scriptFile.exists()) {
-                methodLogger.debug("[call] Executing as script file: {}", scriptFile.getAbsolutePath());
-                dbOperation.executeScript(scriptFile, printStatements);
-                return 0;
-            } else {
-                methodLogger.debug("[call] Executing as stored procedure: {}", target);
-                dbOperation.executeStoredProcedure(target, isFunction, parseParameters().toArray());
+            if (!scriptFile.exists()) {
+                logger.debug("Executing as stored procedure: {}", target);
+                operation.executeStoredProcedure(target, isFunction, parseParameters().toArray());
                 return 0;
             }
+
+            if (preFlight) {
+                validateStatements(scriptFile);
+                return 0;
+            }
+
+            logger.debug("Executing as script file: {}", scriptFile.getAbsolutePath());
+            operation.executeScript(scriptFile, printStatements);
+            return 0;
         } catch (Exception e) {
             logger.error("Operation failed: {}", e.getMessage(), e);
-            methodLogger.error("[call] Execution failed with error: {}", e.getMessage(), e);
             throw e;
         }
     }
 
     public static void main(String[] args) {
-        // Enable Log4j2 async logging by default
-        System.setProperty("log4j2.contextSelector", "org.apache.logging.log4j.core.async.AsyncLoggerContextSelector");
-        System.setProperty("AsyncLogger.RingBufferSize", "262144");
-        System.setProperty("AsyncLogger.WaitStrategy", "Yield");
+        // Configure Log4j programmatically
+        ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
         
-        // Create a static logger for main method
-        Logger mainLogger = LoggerFactory.getLogger(UnifiedDatabaseRunner.class);
+        // Create appenders
+        builder.add(builder.newAppender("Console", "CONSOLE")
+            .addAttribute("target", "SYSTEM_OUT")
+            .add(builder.newLayout("PatternLayout")
+                .addAttribute("pattern", "%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n")));
         
-        mainLogger.info("Starting UnifiedDatabaseRunner...");
+        // Create root logger
+        builder.add(builder.newRootLogger(org.apache.logging.log4j.Level.INFO)
+            .add(builder.newAppenderRef("Console")));
+        
+        // Configure async logging
+        builder.add(builder.newAsyncLogger("com.example.shelldemo", org.apache.logging.log4j.Level.DEBUG)
+            .addAttribute("includeLocation", "true"));
+        
+        // Initialize Log4j
+        Configurator.initialize(builder.build());
+        
+        logger.info("Starting UnifiedDatabaseRunner...");
         int exitCode = new CommandLine(new UnifiedDatabaseRunner()).execute(args);
-        mainLogger.info("UnifiedDatabaseRunner completed with exit code: {}", exitCode);
+        logger.info("UnifiedDatabaseRunner completed with exit code: {}", exitCode);
         System.exit(exitCode);
     }
 }

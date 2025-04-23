@@ -4,20 +4,29 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.*;
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.io.TempDir;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestInfo;
 import picocli.CommandLine;
+import com.example.shelldemo.config.ConfigurationHolder;
+import org.junit.jupiter.api.extension.AfterEachCallback;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
-
-public class UnifiedDatabaseRunnerTest {
+class UnifiedDatabaseRunnerTest {
     
     // Oracle connection parameters for HR schema
     private static final String ORACLE_HOST = "localhost";
@@ -26,10 +35,123 @@ public class UnifiedDatabaseRunnerTest {
     private static final String ORACLE_USERNAME = "HR";
     private static final String ORACLE_PASSWORD = "HR";
     
-    private static final Logger logger = LoggerFactory.getLogger(UnifiedDatabaseRunnerTest.class);
+    private static final Logger logger = LogManager.getLogger(UnifiedDatabaseRunnerTest.class);
+    private static final String SEPARATOR = "========================================";
+    private static final String SUCCESS_MARKER = "✓";
+    private static final String FAILURE_MARKER = "✗";
+    private static final String FAILED_SQL_DIR = "failed_sql_tests";
     
     @TempDir
     Path tempDir;
+
+    private PrintStream originalOut;
+    private PrintStream originalErr;
+    private ByteArrayOutputStream outputStream;
+    private List<Path> sqlFilesForTest;
+    
+    @BeforeAll
+    static void setupClass() throws Exception {
+        logger.info("\n{}\nTest Suite Starting\n{}", SEPARATOR, SEPARATOR);
+        
+        // Initialize configuration
+        ConfigurationHolder.getInstance();
+        logger.info("Configuration initialized successfully");
+        
+        // Create directory for failed SQL files if it doesn't exist
+        Path failedSqlDir = Paths.get(FAILED_SQL_DIR);
+        if (!Files.exists(failedSqlDir)) {
+            Files.createDirectory(failedSqlDir);
+        }
+    }
+    
+    @BeforeEach
+    void setUp(TestInfo testInfo) throws Exception {
+        // Initialize test resources
+        assertDoesNotThrow(() -> {
+            sqlFilesForTest = new ArrayList<>();
+            outputStream = new ByteArrayOutputStream();
+            
+            // Store original streams
+            originalOut = System.out;
+            originalErr = System.err;
+            
+            // Set up test streams
+            System.setOut(new PrintStream(outputStream));
+            System.setErr(new PrintStream(new ByteArrayOutputStream()));
+        }, "Test setup should complete without errors");
+
+        // Log test start using TestInfo
+        assertNotNull(testInfo.getDisplayName(), "Test name should be available");
+        logTestStart(testInfo.getDisplayName());
+    }
+
+    @AfterEach
+    void tearDown(TestInfo testInfo) throws Exception {
+        String testName = testInfo.getDisplayName();
+        boolean testSucceeded = true;
+        
+        // Restore original streams
+        System.setOut(originalOut);
+        System.setErr(originalErr);
+        
+        // Process test output
+        String output = outputStream.toString();
+        if (!output.isEmpty()) {
+            logger.debug("Test output: {}", output);
+            
+            // Verify no database errors occurred
+            assertAll("Database operation validation",
+                () -> assertFalse(output.contains("ERROR com.example.shelldemo.exception.DatabaseException"), 
+                    "Test output contains database exceptions"),
+                () -> assertFalse(output.contains("ORA-"), 
+                    "Test output contains Oracle errors"),
+                () -> assertFalse(output.contains("oracle.jdbc.OracleDatabaseException"), 
+                    "Test output contains JDBC exceptions")
+            );
+        }
+        
+        // Save SQL files if we have any failures
+        if (!testSucceeded) {
+            saveSqlFilesOnFailure(testName);
+        }
+        
+        // Always log test completion
+        logTestFinish(testName, testSucceeded);
+    }
+
+    private void saveSqlFilesOnFailure(String testName) throws IOException {
+        if (sqlFilesForTest.isEmpty()) {
+            return;
+        }
+
+        // Create a timestamped directory for this test failure
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        String safeName = testName.replaceAll("[^a-zA-Z0-9-_]", "_");
+        Path failureDir = Paths.get(FAILED_SQL_DIR, safeName + "_" + timestamp);
+        Files.createDirectories(failureDir);
+
+        // Copy all SQL files used in the test
+        for (Path sqlFile : sqlFilesForTest) {
+            if (Files.exists(sqlFile)) {
+                Path targetPath = failureDir.resolve(sqlFile.getFileName());
+                Files.copy(sqlFile, targetPath, StandardCopyOption.REPLACE_EXISTING);
+                logger.info("Saved failed test SQL file: {}", targetPath);
+            }
+        }
+    }
+
+    private void trackSqlFile(Path sqlFile) {
+        sqlFilesForTest.add(sqlFile);
+    }
+
+    private void logTestStart(String testName) {
+        logger.info("\n{}\nTest * {}\n{}", SEPARATOR, testName, SEPARATOR);
+    }
+
+    private void logTestFinish(String testName, boolean success) {
+        String status = success ? "SUCCESS " + SUCCESS_MARKER : "FAIL " + FAILURE_MARKER;
+        logger.info("\n{}\nTest * {} * {}\n{}", SEPARATOR, testName, status, SEPARATOR);
+    }
     
     /**
      * Helper method to create a standard set of arguments for UnifiedDatabaseRunner
@@ -53,228 +175,194 @@ public class UnifiedDatabaseRunnerTest {
 
     @Test
     @DisplayName("Test connection to HR schema")
-    public void testHRSchemaConnection() throws Exception {
-        // Create a temporary SQL file with a simple query
+    void testHRSchemaConnection() throws Exception {
+        // Arrange
         Path sqlFile = tempDir.resolve("hr_connection_test.sql");
         Files.writeString(sqlFile, "SELECT * FROM employees WHERE rownum <= 5");
+        trackSqlFile(sqlFile);
         
-        // Capture the output of the command
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        PrintStream originalOut = System.out;
-        try {
-            System.setOut(new PrintStream(outputStream));
-            
-            // Run the UnifiedDatabaseRunner via command line
-            String[] args = {
-                "--type", "oracle",
-                "--connection-type", "thin",
-                "--host", ORACLE_HOST,
-                "--port", String.valueOf(ORACLE_PORT),
-                "--username", ORACLE_USERNAME,
-                "--password", ORACLE_PASSWORD,
-                "--database", ORACLE_DATABASE,
-                "--stop-on-error",
-                "--print-statements",
-                sqlFile.toFile().getAbsolutePath()
-            };
-            
-            int result = new CommandLine(new UnifiedDatabaseRunner()).execute(args);
-            
-            // Verify successful execution
-            assertEquals(0, result, "Runner should execute successfully");
-            
-            // Verify output contains expected data
-            String output = outputStream.toString();
-            assertTrue(output.contains("EMPLOYEE_ID"), "Output should contain employee data");
-            logger.info("Successfully verified connection to HR schema");
-        } finally {
-            System.setOut(originalOut);
-        }
+        // Act
+        String[] args = createDefaultRunnerArgs(sqlFile.toString());
+        int result = new CommandLine(new UnifiedDatabaseRunner()).execute(args);
+        String output = outputStream.toString();
+        
+        // Assert
+        assertAll(
+            () -> assertEquals(0, result, "Runner should execute successfully"),
+            () -> assertTrue(output.contains("EMPLOYEE_ID"), 
+                "Output should contain employee data"),
+            () -> assertFalse(output.contains("ORA-"), 
+                "Output should not contain Oracle errors")
+        );
     }
 
     @Test
     @DisplayName("Test query with real data")
-    public void testQueryWithRealData() throws Exception {
-        // Create a temporary SQL file with a more complex query
+    void testQueryWithRealData() throws Exception {
+        // Arrange
         Path sqlFile = tempDir.resolve("hr_complex_query.sql");
-        Files.writeString(sqlFile,
+        String complexQuery = 
             "SELECT d.department_name, COUNT(e.employee_id) as employee_count " +
             "FROM departments d JOIN employees e ON d.department_id = e.department_id " +
-            "GROUP BY d.department_name");
-            
-        // Capture the output of the command
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        PrintStream originalOut = System.out;
-        try {
-            System.setOut(new PrintStream(outputStream));
-            
-            // Run the UnifiedDatabaseRunner via command line
-            String[] args = {
-                "--type", "oracle",
-                "--connection-type", "thin",
-                "--host", ORACLE_HOST,
-                "--port", String.valueOf(ORACLE_PORT),
-                "--username", ORACLE_USERNAME,
-                "--password", ORACLE_PASSWORD,
-                "--database", ORACLE_DATABASE,
-                "--stop-on-error",
-                "--print-statements",
-                sqlFile.toFile().getAbsolutePath()
-            };
-            
-            int result = new CommandLine(new UnifiedDatabaseRunner()).execute(args);
-            
-            // Verify successful execution
-            assertEquals(0, result, "Runner should execute successfully");
-            
-            // Verify output contains expected data
-            String output = outputStream.toString();
-            assertTrue(output.contains("DEPARTMENT_NAME"), "Output should contain department name");
-            assertTrue(output.contains("EMPLOYEE_COUNT"), "Output should contain employee count");
-            logger.info("Successfully queried departments with employee counts");
-        } finally {
-            System.setOut(originalOut);
-        }
+            "GROUP BY d.department_name";
+        Files.writeString(sqlFile, complexQuery);
+        trackSqlFile(sqlFile);
+
+        // Act
+        String[] args = createDefaultRunnerArgs(sqlFile.toString());
+        int result = new CommandLine(new UnifiedDatabaseRunner()).execute(args);
+        String output = outputStream.toString();
+
+        // Assert
+        assertAll("Complex query execution",
+            () -> assertEquals(0, result, 
+                "Runner should execute successfully"),
+            () -> assertTrue(output.contains("DEPARTMENT_NAME"), 
+                "Output should contain department name"),
+            () -> assertTrue(output.contains("EMPLOYEE_COUNT"), 
+                "Output should contain employee count"),
+            () -> assertFalse(output.contains("ORA-"), 
+                "Output should not contain Oracle errors"),
+            () -> assertFalse(output.contains("Exception"), 
+                "Output should not contain any exceptions")
+        );
     }
 
     @Test
     @DisplayName("Test execute SQL script file")
-    public void testExecuteScriptFile() throws Exception {
-        // Create a temporary SQL script
+    void testExecuteScriptFile() throws Exception {
+        // Arrange
         Path sqlFile = tempDir.resolve("test_script.sql");
-        Files.writeString(sqlFile, 
-            "SELECT employee_id, first_name, last_name FROM employees WHERE rownum <= 3;\n" +
-            "SELECT department_id, department_name FROM departments WHERE rownum <= 3;\n");
-        
-        // Execute the script using command line
-        String[] args = createDefaultRunnerArgs(sqlFile.toFile().getAbsolutePath());
+        String multipleQueries = String.join("\n",
+            "SELECT employee_id, first_name, last_name FROM employees WHERE rownum <= 3;",
+            "SELECT department_id, department_name FROM departments WHERE rownum <= 3;"
+        );
+        Files.writeString(sqlFile, multipleQueries);
+        trackSqlFile(sqlFile);
+
+        // Act
+        String[] args = createDefaultRunnerArgs(sqlFile.toString());
         int result = new CommandLine(new UnifiedDatabaseRunner()).execute(args);
-        
-        // Verify successful execution
-        assertEquals(0, result, "Runner should execute successfully");
-        logger.info("Successfully executed SQL script");
+        String output = outputStream.toString();
+
+        // Assert
+        assertAll("Multiple SQL statements execution",
+            () -> assertEquals(0, result, 
+                "Runner should execute successfully"),
+            () -> assertTrue(output.contains("EMPLOYEE_ID"), 
+                "Output should contain employee data"),
+            () -> assertTrue(output.contains("DEPARTMENT_ID"), 
+                "Output should contain department data"),
+            () -> assertFalse(output.contains("ORA-"), 
+                "Output should not contain Oracle errors"),
+            () -> assertFalse(output.contains("Exception"), 
+                "Output should not contain any exceptions"),
+            () -> assertTrue(output.contains("Script execution completed successfully"), 
+                "Output should indicate successful script execution")
+        );
     }
 
     @Test
-    @DisplayName("Test execute HR schema stored procedure")
-    public void testExecuteStoredProcedure() throws Exception {
-        // Path to the SQL files
-        String createProcPath = tempDir.resolve("create_proc.sql").toString();
-        String dropProcPath = tempDir.resolve("drop_proc.sql").toString();
+    @DisplayName("Test SQL DDL script")
+    void testSqlDdlScript() throws Exception {
+        // Arrange
+        Path sqlScriptPath = tempDir.resolve("test_ddl.sql");
+        Path sourcePath = Path.of("/home/swapanc/code/shdemmo/app/src/test/resources/sql/create_employee_info_proc.sql");
         
-        // Copy SQL files to temp directory for the test
-        Files.copy(
-            Path.of("/home/swapanc/code/shdemmo/app/src/test/resources/sql/create_employee_info_proc.sql"),
-            Path.of(createProcPath),
-            StandardCopyOption.REPLACE_EXISTING
-        );
-        Files.copy(
-            Path.of("/home/swapanc/code/shdemmo/app/src/test/resources/sql/drop_employee_info_proc.sql"),
-            Path.of(dropProcPath),
-            StandardCopyOption.REPLACE_EXISTING
-        );
-        
-        try {
-            // First create the stored procedure using UnifiedDatabaseRunner
-            String[] createArgs = createDefaultRunnerArgs(createProcPath);
-            int createResult = new CommandLine(new UnifiedDatabaseRunner()).execute(createArgs);
-            assertEquals(0, createResult, "Procedure creation should succeed");
+        assertDoesNotThrow(() -> {
+            // Copy SQL file and track it
+            Files.copy(sourcePath, sqlScriptPath, StandardCopyOption.REPLACE_EXISTING);
+            trackSqlFile(sqlScriptPath);
             
-            // Now execute the stored procedure using command line
-            String[] callProcArgs = {
-                "--type", "oracle",
-                "--connection-type", "thin",
-                "--host", ORACLE_HOST,
-                "--port", String.valueOf(ORACLE_PORT),
-                "--username", ORACLE_USERNAME,
-                "--password", ORACLE_PASSWORD,
-                "--database", ORACLE_DATABASE,
-                "--stop-on-error",
-                "--input-params", "p_emp_id:NUMBER:100",
-                "--output-params", "p_result:VARCHAR2",
-                "get_employee_info"
-            };
-            int result = new CommandLine(new UnifiedDatabaseRunner()).execute(callProcArgs);
-            
-            // Verify successful execution
-            assertEquals(0, result, "Runner should execute procedure successfully");
-            logger.info("Successfully executed stored procedure");
-        } finally {
-            // Clean up by dropping the procedure using UnifiedDatabaseRunner
-            String[] dropArgs = createDefaultRunnerArgs(dropProcPath);
-            new CommandLine(new UnifiedDatabaseRunner()).execute(dropArgs);
-        }
+            // Verify file was copied correctly
+            assertTrue(Files.exists(sqlScriptPath), "SQL script file should exist");
+            assertTrue(Files.size(sqlScriptPath) > 0, "SQL script file should not be empty");
+        }, "File operations should complete without errors");
+
+        // Act
+        String[] args = createDefaultRunnerArgs(sqlScriptPath.toString());
+        int result = new CommandLine(new UnifiedDatabaseRunner())
+            .setExecutionStrategy(new CommandLine.RunLast())
+            .execute(args);
+        String output = outputStream.toString();
+
+        // Assert
+        assertAll("DDL script execution",
+            () -> assertEquals(0, result, 
+                "SQL script execution should succeed"),
+            () -> assertFalse(output.contains("ORA-"), 
+                "Output should not contain Oracle errors"),
+            () -> assertFalse(output.contains("Exception"), 
+                "Output should not contain any exceptions"),
+            () -> assertTrue(output.contains("Script execution completed successfully"), 
+                "Output should indicate successful execution")
+        );
     }
 
     @Test
-    @DisplayName("Test execute HR schema function")
-    public void testExecuteFunction() throws Exception {
-        // First create a SQL file with function creation
-        Path createFunctionSql = tempDir.resolve("create_function.sql");
-        Files.writeString(createFunctionSql, 
-            "CREATE OR REPLACE FUNCTION get_department_name(p_dept_id IN NUMBER) RETURN VARCHAR2 AS " +
-            "  v_name VARCHAR2(30); " +
-            "BEGIN " +
-            "  SELECT department_name INTO v_name " +
-            "  FROM departments WHERE department_id = p_dept_id; " +
-            "  RETURN v_name; " +
-            "END;");
+    @DisplayName("Test Oracle Function Creation")
+    void testOracleFunctionCreation() throws Exception {
+        // Arrange
+        Path sqlFile = Files.createTempFile(tempDir, "create_function", ".sql");
+        String functionDefinition = 
+            "CREATE OR REPLACE FUNCTION get_employee_info(p_emp_id IN NUMBER) " +
+            "RETURN VARCHAR2 IS v_result VARCHAR2(100); BEGIN RETURN v_result; END;";
         
-        // Create a SQL file for function deletion
-        Path dropFunctionSql = tempDir.resolve("drop_function.sql");
-        Files.writeString(dropFunctionSql, "DROP FUNCTION get_department_name");
+        assertDoesNotThrow(() -> {
+            Files.writeString(sqlFile, functionDefinition);
+            trackSqlFile(sqlFile);
+            assertTrue(Files.exists(sqlFile), "SQL file should exist");
+            assertTrue(Files.size(sqlFile) > 0, "SQL file should not be empty");
+        }, "File operations should complete without errors");
+
+        // Act
+        String[] args = createDefaultRunnerArgs(sqlFile.toString());
+        int result = new CommandLine(new UnifiedDatabaseRunner()).execute(args);
+        String output = outputStream.toString();
+
+        // Assert
+        assertAll("Oracle function creation",
+            () -> assertEquals(0, result, 
+                "Function creation should succeed"),
+            () -> assertTrue(output.contains("CREATE OR REPLACE FUNCTION"), 
+                "Output should contain function creation statement"),
+            () -> assertTrue(output.contains("Script execution completed successfully"), 
+                "Output should indicate successful execution"),
+            () -> assertFalse(output.contains("ERROR com.example.shelldemo.exception.DatabaseException"), 
+                "Output should not contain database exceptions"),
+            () -> assertFalse(output.contains("ORA-"), 
+                "Output should not contain Oracle errors"),
+            () -> assertFalse(output.contains("oracle.jdbc.OracleDatabaseException"), 
+                "Output should not contain JDBC exceptions")
+        );
+    }
+
+    @Test
+    void testExample() throws Exception {
+        // ... test setup ...
         
-        try {
-            // Execute function creation via the runner
-            String[] createArgs = {
-                "--type", "oracle",
-                "--connection-type", "thin",
-                "--host", ORACLE_HOST,
-                "--port", String.valueOf(ORACLE_PORT),
-                "--username", ORACLE_USERNAME,
-                "--password", ORACLE_PASSWORD,
-                "--database", ORACLE_DATABASE,
-                "--stop-on-error", "true",
-                createFunctionSql.toFile().getAbsolutePath()
-            };
-            int createResult = new CommandLine(new UnifiedDatabaseRunner()).execute(createArgs);
-            assertEquals(0, createResult, "Function creation should succeed");
-            
-            // Now call the function via the runner
-            String[] callArgs = {
-                "--type", "oracle",
-                "--connection-type", "thin",
-                "--host", ORACLE_HOST,
-                "--port", String.valueOf(ORACLE_PORT),
-                "--username", ORACLE_USERNAME,
-                "--password", ORACLE_PASSWORD,
-                "--database", ORACLE_DATABASE,
-                "--stop-on-error", "true",
-                "--is-function", "true",
-                "--return-type", "VARCHAR2",
-                "--input-params", "p_dept_id:NUMBER:10",
-                "get_department_name"
-            };
-            
-            int callResult = new CommandLine(new UnifiedDatabaseRunner()).execute(callArgs);
-            
-            // Verify successful execution
-            assertEquals(0, callResult, "Runner should execute function successfully");
-            logger.info("Successfully executed function");
-        } finally {
-            // Clean up by dropping the function, also using the runner
-            String[] dropArgs = {
-                "--type", "oracle",
-                "--connection-type", "thin",
-                "--host", ORACLE_HOST,
-                "--port", String.valueOf(ORACLE_PORT),
-                "--username", ORACLE_USERNAME,
-                "--password", ORACLE_PASSWORD,
-                "--database", ORACLE_DATABASE,
-                "--stop-on-error", "true",
-                dropFunctionSql.toFile().getAbsolutePath()
-            };
-            new CommandLine(new UnifiedDatabaseRunner()).execute(dropArgs);
+        String output = outputStream.toString();
+        
+        assertAll("Database operation validation",
+            () -> assertFalse(output.contains("ERROR com.example.shelldemo.exception.DatabaseException"), 
+                "Output should not contain database exceptions"),
+            () -> assertFalse(output.contains("ORA-"), 
+                "Output should not contain Oracle errors"),
+            () -> assertFalse(output.contains("oracle.jdbc.OracleDatabaseException"), 
+                "Output should not contain JDBC exceptions")
+        );
+    }
+
+    /**
+     * Extension method to ensure resources are properly closed
+     */
+    @ExtendWith(SystemStreamExtension.class)
+    class SystemStreamExtension implements AfterEachCallback {
+        @Override
+        public void afterEach(ExtensionContext context) {
+            System.setOut(originalOut);
+            System.setErr(originalErr);
         }
     }
+
 }

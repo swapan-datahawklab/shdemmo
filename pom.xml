@@ -10,9 +10,11 @@
   <packaging>pom</packaging>
   <name>Shell Demo Parent</name>
   <description>Oracle Database Utilities with Spring Shell Interface - Parent POM</description>
+  <url>https://github.com/yourusername/shdemmo</url>
 
   <modules>
     <module>app</module>
+    <module>database-login-validation-tool</module>
     <module>create-distribution</module>
   </modules>
 
@@ -22,18 +24,11 @@
     <maven.compiler.target>21</maven.compiler.target>
     
     <!-- Dependency versions -->
-    <slf4j.version>2.0.17</slf4j.version>
-    <logback.version>1.5.18</logback.version>
     <picocli.version>4.7.7</picocli.version>
     <oracle.version>23.7.0.25.01</oracle.version>
     <junit.version>5.12.2</junit.version>
     <junit-platform.version>1.12.2</junit-platform.version>
-    <mockito.version>5.17.0</mockito.version>
-    <assertj.version>3.27.3</assertj.version>
-    <hamcrest.version>3.0</hamcrest.version>
-
-    <jsonassert.version>1.5.3</jsonassert.version>
-    <jackson.version>2.18.3</jackson.version>
+    <jackson.version>2.18.0</jackson.version>
     <log4j2.version>2.24.3</log4j2.version>
     <disruptor.version>4.0.0</disruptor.version>
     <properties.plugin.version>1.1.0</properties.plugin.version>
@@ -46,11 +41,21 @@
     <maven.jar.plugin.version>3.0.2</maven.jar.plugin.version>
     <maven.shade.plugin.version>3.5.1</maven.shade.plugin.version>
     <maven.exec.plugin.version>3.2.0</maven.exec.plugin.version>
+    <maven-project-info-reports-plugin.version>3.4.5</maven-project-info-reports-plugin.version>
+    <maven-site-plugin.version>3.12.1</maven-site-plugin.version>
+    <jacoco-maven-plugin.version>0.8.11</jacoco-maven-plugin.version>
+    <maven-surefire-report-plugin.version>3.2.5</maven-surefire-report-plugin.version>
+    <doxia.version>1.12.0</doxia.version>
     
     <!-- OS properties -->
     <os.unix>true</os.unix>
     <os.windows>true</os.windows>
     <skip.bundle.creation>true</skip.bundle.creation>
+
+    <!-- Testing and Reporting Versions -->
+    <maven-site-plugin.version>3.12.1</maven-site-plugin.version>
+    <jacoco-maven-plugin.version>0.8.11</jacoco-maven-plugin.version>
+    <maven-surefire-report-plugin.version>${maven.surefire.plugin.version}</maven-surefire-report-plugin.version>
   </properties>
 
   <dependencyManagement>
@@ -62,13 +67,7 @@
         <version>${oracle.version}</version>
       </dependency>
 
-      <!-- Logging -->
-      <dependency>
-        <groupId>org.slf4j</groupId>
-        <artifactId>slf4j-api</artifactId>
-        <version>${slf4j.version}</version>
-      </dependency>
-      <!-- Log4j2 -->
+      <!-- Logging with Log4j2 -->
       <dependency>
         <groupId>org.apache.logging.log4j</groupId>
         <artifactId>log4j-api</artifactId>
@@ -79,11 +78,6 @@
         <artifactId>log4j-core</artifactId>
         <version>${log4j2.version}</version>
       </dependency>
-      <dependency>
-        <groupId>org.apache.logging.log4j</groupId>
-        <artifactId>log4j-slf4j2-impl</artifactId>
-        <version>${log4j2.version}</version>
-      </dependency>
       <!-- LMAX Disruptor for Log4j2 Async Logging -->
       <dependency>
         <groupId>com.lmax</groupId>
@@ -91,65 +85,12 @@
         <version>${disruptor.version}</version>
       </dependency>
 
-      <!-- Testing -->
-
-      <dependency>
-        <groupId>org.mockito</groupId>
-        <artifactId>mockito-core</artifactId>
-        <version>${mockito.version}</version>
-        <scope>test</scope>
-      </dependency>
-      <dependency>
-        <groupId>org.mockito</groupId>
-        <artifactId>mockito-junit-jupiter</artifactId>
-        <version>${mockito.version}</version>
-        <scope>test</scope>
-      </dependency>
-      <dependency>
-        <groupId>org.assertj</groupId>
-        <artifactId>assertj-core</artifactId>
-        <version>${assertj.version}</version>
-        <scope>test</scope>
-      </dependency>
-      <dependency>
-        <groupId>org.hamcrest</groupId>
-        <artifactId>hamcrest</artifactId>
-        <version>${hamcrest.version}</version>
-        <scope>test</scope>
-      </dependency>
-      <dependency>
-        <groupId>org.skyscreamer</groupId>
-        <artifactId>jsonassert</artifactId>
-        <version>${jsonassert.version}</version>
-        <scope>test</scope>
-      </dependency>
-      <!-- JUnit -->
-      <dependency>
-        <groupId>org.junit.jupiter</groupId>
-        <artifactId>junit-jupiter-engine</artifactId>
-        <version>${junit.version}</version>
-        <scope>test</scope>
-      </dependency>
-      <dependency>
-          <groupId>org.junit.platform</groupId>
-          <artifactId>junit-platform-launcher</artifactId>
-          <version>${junit-platform.version}</version>
-          <scope>test</scope>
-      </dependency>
-      <dependency>
-          <groupId>org.junit.jupiter</groupId>
-          <artifactId>junit-jupiter</artifactId>
-          <version>${junit.version}</version>
-          <scope>test</scope>
-      </dependency>
-      
       <!-- Command Line Interface -->
       <dependency>
         <groupId>info.picocli</groupId>
         <artifactId>picocli</artifactId>
         <version>${picocli.version}</version>
       </dependency>
-
 
       <!-- YAML Support -->
       <dependency>
@@ -164,9 +105,6 @@
         <artifactId>jackson-databind</artifactId>
         <version>${jackson.version}</version>
       </dependency>
-
-
-
     </dependencies>
   </dependencyManagement>
 
@@ -217,7 +155,60 @@
           <artifactId>versions-maven-plugin</artifactId>
           <version>${versions.plugin.version}</version>
         </plugin>
+
+        <!-- Site and Report Generation -->
+        <plugin>
+          <artifactId>maven-site-plugin</artifactId>
+          <version>${maven-site-plugin.version}</version>
+        </plugin>
+
+        <!-- JaCoCo Code Coverage -->
+        <plugin>
+          <groupId>org.jacoco</groupId>
+          <artifactId>jacoco-maven-plugin</artifactId>
+          <version>${jacoco-maven-plugin.version}</version>
+        </plugin>
+
+        <!-- Surefire Reports -->
+        <plugin>
+          <artifactId>maven-surefire-report-plugin</artifactId>
+          <version>${maven-surefire-report-plugin.version}</version>
+        </plugin>
       </plugins>
     </pluginManagement>
   </build>
+
+  <reporting>
+    <plugins>
+      <!-- Project Info Reports -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-project-info-reports-plugin</artifactId>
+        <version>${maven-project-info-reports-plugin.version}</version>
+      </plugin>
+
+      <!-- Surefire Test Reports -->
+      <plugin>
+        <artifactId>maven-surefire-report-plugin</artifactId>
+        <version>${maven-surefire-report-plugin.version}</version>
+        <configuration>
+          <showSuccess>true</showSuccess>
+        </configuration>
+      </plugin>
+    </plugins>
+  </reporting>
+
+  <dependencies>
+    <!-- Add Doxia dependencies -->
+    <dependency>
+      <groupId>org.apache.maven.doxia</groupId>
+      <artifactId>doxia-core</artifactId>
+      <version>${doxia.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven.doxia</groupId>
+      <artifactId>doxia-sink-api</artifactId>
+      <version>${doxia.version}</version>
+    </dependency>
+  </dependencies>
 </project>

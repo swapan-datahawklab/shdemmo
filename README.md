@@ -315,7 +315,7 @@ String dbPassword = System.getenv("DB_PASSWORD");
 ## Logging Configuration
 
 ### Overview
-The application uses a two-tier logging system:
+The application uses Log4j2 for logging with two main components:
 1. Regular application logging (`logger`)
 2. Method-specific detailed logging (`methodLogger`)
 
@@ -328,44 +328,49 @@ The application uses a two-tier logging system:
 ### Configuration
 
 #### Method-Specific Debug Logging
-To enable detailed method-level logging, add the following to your `logback.xml` or `log4j2.xml`:
+To enable detailed method-level logging, add the following to your `log4j2.xml`:
 
 ```xml
 <!-- Regular application logging -->
-<logger name="com.example.shelldemo" level="INFO"/>
+<Logger name="com.example.shelldemo" level="INFO" additivity="false">
+    <AppenderRef ref="Console"/>
+    <AppenderRef ref="File"/>
+</Logger>
 
 <!-- Method-specific detailed logging -->
-<logger name="com.example.shelldemo.UnifiedDatabaseRunner.methods" level="DEBUG">
-    <appender-ref ref="CONSOLE"/>
-    <appender-ref ref="METHOD_DEBUG_FILE"/>
-</logger>
+<Logger name="com.example.shelldemo.UnifiedDatabaseRunner.methods" level="DEBUG" additivity="false">
+    <AppenderRef ref="Console"/>
+    <AppenderRef ref="MethodDebugFile"/>
+</Logger>
 ```
 
 #### Log File Configuration
 ```xml
 <!-- Regular log file -->
-<appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-    <file>logs/application.log</file>
-    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-        <fileNamePattern>logs/application.%d{yyyy-MM-dd}.log</fileNamePattern>
-        <maxHistory>30</maxHistory>
-    </rollingPolicy>
-    <encoder>
-        <pattern>%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n</pattern>
-    </encoder>
-</appender>
+<RollingRandomAccessFile name="File"
+    fileName="logs/application.log"
+    filePattern="logs/archive/application-%d{yyyy-MM-dd}-%i.log.gz"
+    append="true">
+    <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%t] %-5level %logger{36} - %msg%n"/>
+    <Policies>
+        <TimeBasedTriggeringPolicy/>
+        <SizeBasedTriggeringPolicy size="100 MB"/>
+    </Policies>
+    <DefaultRolloverStrategy max="30"/>
+</RollingRandomAccessFile>
 
 <!-- Method debug log file -->
-<appender name="METHOD_DEBUG_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-    <file>logs/method-debug.log</file>
-    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-        <fileNamePattern>logs/method-debug.%d{yyyy-MM-dd}.log</fileNamePattern>
-        <maxHistory>7</maxHistory>
-    </rollingPolicy>
-    <encoder>
-        <pattern>%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level - %msg%n</pattern>
-    </encoder>
-</appender>
+<RollingRandomAccessFile name="MethodDebugFile"
+    fileName="logs/method-debug.log"
+    filePattern="logs/archive/method-debug-%d{yyyy-MM-dd}-%i.log.gz"
+    append="true">
+    <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%t] %-5level %logger{36} - %msg%n"/>
+    <Policies>
+        <TimeBasedTriggeringPolicy/>
+        <SizeBasedTriggeringPolicy size="100 MB"/>
+    </Policies>
+    <DefaultRolloverStrategy max="30"/>
+</RollingRandomAccessFile>
 ```
 
 ### Available Debug Information
@@ -732,3 +737,510 @@ For more comprehensive testing capabilities, we've added:
 - Dependencies are added with `<scope>test</scope>` in module POMs
 - Test dependencies are only available during testing, not in the production classpath
 
+## Reporting Setup and Implementation
+
+### Overview
+The application includes a comprehensive reporting system that provides:
+1. Command output reporting
+2. Test execution reporting
+3. Database operation reporting
+4. Analysis reporting
+
+### Command Output Reporting
+
+#### Output Formats
+- **Standard Output**: Regular command execution results
+- **CSV Format**: Structured data output for database queries
+  ```bash
+  --csv-output "results.csv"
+  ```
+- **Detailed Logging**: Method-level execution details
+
+#### Database Operation Reports
+```java
+DatabaseLoginServiceTestResult {
+    - Database name
+    - Service name
+    - Database type
+    - Success status
+    - Response time (ms)
+    - Error message (if any)
+    - SQL state
+}
+```
+
+### Test Execution Reports
+
+#### Test Output Structure
+1. **Test Start**:
+   ```
+   ========================================
+   Test * testName
+   ========================================
+   ```
+
+2. **Test Completion**:
+   ```
+   ========================================
+   Test * testName * SUCCESS ✓
+   ========================================
+   ```
+
+3. **Failure Handling**:
+   - SQL files preserved on test failure
+   - Timestamped directories for failed tests
+   - Detailed error context
+
+#### Test Report Location
+- Failed SQL tests: `failed_sql_tests/`
+- Test logs: `logs/test/`
+- Surefire reports: `target/surefire-reports/`
+
+### Analysis Reports
+
+#### Structure Analysis
+```bash
+./scripts/project-analysis/analyze.sh structure
+```
+Generates:
+- Directory hierarchy
+- File statistics
+- Package organization
+- Memory bank structure
+
+#### Pattern Analysis
+```bash
+./scripts/project-analysis/analyze.sh similar 'pattern' '*.ext'
+```
+Reports:
+- Common code patterns
+- Similar implementations
+- Potential duplicates
+
+#### Dependency Analysis
+```bash
+./scripts/project-analysis/analyze.sh dependencies
+```
+Provides:
+- Maven dependency tree
+- Version conflicts
+- Unused dependencies
+
+### Report Validation
+
+#### Output Validation
+```bash
+./scripts/analysis/validation/validate_output.sh
+```
+Checks:
+- Command output format
+- Expected patterns
+- Error conditions
+
+#### Directory Validation
+```bash
+./scripts/analysis/validation/validate_output.sh --directory
+```
+Verifies:
+- Required files
+- File permissions
+- Directory structure
+
+### Best Practices
+
+1. **Report Generation**:
+   - Use appropriate output format for data type
+   - Include timestamps in report files
+   - Maintain consistent naming conventions
+
+2. **Error Reporting**:
+   - Include context with errors
+   - Preserve failed test artifacts
+   - Log stack traces for debugging
+
+3. **Performance Considerations**:
+   - Use async logging for large reports
+   - Implement log rotation
+   - Clean up old report files
+
+4. **Security**:
+   - Mask sensitive data in reports
+   - Secure report file permissions
+   - Validate output paths
+
+### Report File Locations
+- Analysis reports: `logs/analysis/`
+- Validation reports: `logs/validation/`
+- Test reports: `logs/test/`
+- Command output: `logs/output/`
+
+### Report Retention
+- Analysis reports: 30 days
+- Test reports: 7 days
+- Failed test artifacts: 30 days
+- Command output: 7 days
+
+Dynamic JDBC Driver Loading Flow
+-------------------------------
+```
+ConfigurationHolder (Global Configuration)
+    ↓
+UnifiedDatabaseRunner (CLI/Entry point)
+    │   [1. User provides --driver-path argument]
+    │
+    ├─> UnifiedDatabaseOperation 
+    │      │   [2. loadDriverFromPath loads JAR]
+    │      │   [3. Creates URLClassLoader]
+    │      │   [4. Uses ServiceLoader to find drivers]
+    │      │
+    │      ├─> CustomDriver (JDBC driver wrapper)
+    │      │     [5. Wraps each found driver]
+    │      │     [6. Registers with DriverManager]
+    │      │
+    │      └─> DatabaseConnectionFactory
+                 [7. Uses registered driver via DriverManager.getConnection]
+```
+
+Code Flow:
+1. CLI Input:
+
+```java
+   @Option(names = {"--driver-path"}, description = "Path to JDBC driver JAR file")
+   private String driverPath;
+```
+
+2. Runner triggers loading:
+
+```java
+   if (driverPath != null) {
+       dbOperation.loadDriverFromPath(driverPath);
+   }
+```
+
+3. Driver Loading:
+
+```java
+   public void loadDriverFromPath(String path) {
+       File driverFile = new File(path);
+       URL driverUrl = driverFile.toURI().toURL();
+       URLClassLoader loader = new URLClassLoader(
+           new URL[]{driverUrl}, 
+           getClass().getClassLoader()
+       );
+       
+       // Find and register drivers
+       ServiceLoader<Driver> drivers = ServiceLoader.load(Driver.class, loader);
+       for (Driver driver : drivers) {
+           DriverManager.registerDriver(new CustomDriver(driver));
+       }
+   }
+```
+
+4. Driver Wrapping:
+```java
+   public class CustomDriver implements Driver {
+       private final Driver delegate;
+       
+       public CustomDriver(Driver delegate) {
+           this.delegate = delegate;
+       }
+       
+       @Override
+       public Connection connect(String url, Properties info) throws SQLException {
+           return delegate.connect(url, info);
+       }
+       // ... other JDBC Driver interface methods
+   }
+```
+
+5. Using Loaded Driver:
+
+```java
+   public Connection getConnection(ConnectionConfig config) throws SQLException {
+       String connectionUrl = String.format(CONNECTION_TEMPLATES.get(dbType),
+           config.getHost(), config.getPort(), config.getServiceName());
+       // DriverManager automatically uses our registered CustomDriver
+       return DriverManager.getConnection(connectionUrl, props);
+   }
+```
+
+
+::: mermaid
+graph TD;
+    A[UnifiedDatabaseRunner<br/>CLI/Entry point] -->|executes| B[UnifiedDatabaseOperation<br/>SQL/SP/Function Executor]
+    CH[ConfigurationHolder] -.->|used by| A
+    CH -.->|used by| B
+    
+    B --> C[DatabaseConnectionFactory<br/>Connection Management]
+    CH -.->|used by| C
+    
+    C --> D[CustomDriver<br/>JDBC Driver Wrapper]
+    C --> E[ConnectionConfig<br/>Connection Settings]
+    
+    B --> F[DatabaserOperationValidator<br/>SQL/PL-SQL Validation]
+    F --> |uses| C
+    
+    B --> G[Parser Components]
+    G --> H[SqlScriptParser<br/>SQL Script Parsing]
+    G --> I[StoredProcedure Components]
+    
+    I --> J[StoredProcedureParser]
+    I --> K[StoredProcedureValidator]
+    I --> L[StoredProcedureInfo]
+    I --> M[ProcedureParam]
+    
+    B --> N[Error Handling]
+    N --> O[DatabaseErrorFormatter]
+    N --> P[Exception Hierarchy]
+    
+
+    
+    
+    class CH config
+    class A,B main
+    class C,D,E,F,G,H,I,J,K,L,M,N,O,P component
+:::
+
+::: mermaid
+graph TD
+    subgraph Global
+        CH[ConfigurationHolder<br/>Global Configuration]
+    end
+    
+    subgraph CLI
+        A[UnifiedDatabaseRunner<br/>CLI/Entry point]
+    end
+    
+    subgraph Operations
+        B[UnifiedDatabaseOperation]
+        
+        subgraph Driver Management
+            D[CustomDriver<br/>JDBC Driver Wrapper]
+        end
+        
+        subgraph Connection
+            C[DatabaseConnectionFactory]
+        end
+    end
+    
+    CH -->|configures| A
+    A -->|executes| B
+    B -->|creates| D
+    B -->|uses| C
+:::
+
+
+based on this
+
+public class SqlScriptExecutor {
+    private static final Logger logger = LogManager.getLogger(SqlScriptExecutor.class);
+
+    @FunctionalInterface
+    public interface SqlExecutor {
+        Object execute(Statement stmt, String sql) throws SQLException;
+    }
+
+    private static final SqlExecutor PLSQL_EXECUTOR = (stmt, sql) -> {
+        logger.debug("Executing PL/SQL block");
+        return stmt.execute(sql);
+    };
+
+    private static final SqlExecutor SQL_EXECUTOR = (stmt, sql) -> {
+        logger.debug("Executing SQL statement");
+        return stmt.executeUpdate(sql);
+    };
+
+    public void executeScript(Connection conn, String scriptPath) throws SQLException, IOException {
+        List<String> statements = SqlScriptParser.parse(new File(scriptPath));
+        
+        for (String sql : statements) {
+            String trimmedSql = sql.trim().toUpperCase();
+            SqlExecutor executor = determineExecutor(trimmedSql);
+            
+            executeSqlStatement(conn, sql, executor);
+        }
+    }
+
+    private SqlExecutor determineExecutor(String sql) {
+        return isPLSQL(sql) ? PLSQL_EXECUTOR : SQL_EXECUTOR;
+    }
+
+    private boolean isPLSQL(String sql) {
+        return sql.startsWith("BEGIN") || 
+               sql.startsWith("DECLARE") || 
+               sql.startsWith("CREATE") ||
+               sql.contains("END;") ||
+               sql.contains("PROCEDURE") ||
+               sql.contains("FUNCTION") ||
+               sql.contains("PACKAGE");
+    }
+
+    private void executeSqlStatement(Connection conn, String sql, SqlExecutor executor) 
+            throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            try {
+                Object result = executor.execute(stmt, sql);
+                logExecutionResult(sql, result);
+            } catch (SQLException e) {
+                logger.error("Failed to execute SQL: {}", sql);
+                throw new DatabaseOperationException(
+                    String.format("Failed to execute SQL statement: %s", e.getMessage()), 
+                    e
+                );
+            }
+        }
+    }
+
+    private void logExecutionResult(String sql, Object result) {
+        if (result instanceof Boolean) {
+            logger.info("PL/SQL block execution completed. Success: {}", result);
+        } else if (result instanceof Integer) {
+            logger.info("SQL statement affected {} rows", result);
+        }
+    }
+
+    // Enhanced version with batch support and transaction management
+    public void executeScriptWithTransaction(Connection conn, String scriptPath) 
+            throws SQLException, IOException {
+        boolean originalAutoCommit = conn.getAutoCommit();
+        conn.setAutoCommit(false);
+        
+        try {
+            List<String> statements = SqlScriptParser.parse(new File(scriptPath));
+            Map<Boolean, List<String>> groupedStatements = groupStatements(statements);
+            
+            // Execute PL/SQL blocks first (they can't be batched)
+            for (String plsql : groupedStatements.get(true)) {
+                executeSqlStatement(conn, plsql, PLSQL_EXECUTOR);
+            }
+            
+            // Batch execute regular SQL statements
+            executeBatch(conn, groupedStatements.get(false));
+            
+            conn.commit();
+            logger.info("Script execution completed successfully");
+        } catch (Exception e) {
+            conn.rollback();
+            logger.error("Script execution failed, rolling back transaction", e);
+            throw e;
+        } finally {
+            conn.setAutoCommit(originalAutoCommit);
+        }
+    }
+
+    private Map<Boolean, List<String>> groupStatements(List<String> statements) {
+        return statements.stream()
+            .collect(Collectors.groupingBy(
+                sql -> isPLSQL(sql.trim().toUpperCase()),
+                Collectors.toList()
+            ));
+    }
+
+    private void executeBatch(Connection conn, List<String> sqlStatements) 
+            throws SQLException {
+        if (sqlStatements == null || sqlStatements.isEmpty()) {
+            return;
+        }
+
+        try (Statement stmt = conn.createStatement()) {
+            for (String sql : sqlStatements) {
+                stmt.addBatch(sql);
+            }
+            int[] results = stmt.executeBatch();
+            logBatchResults(results);
+        }
+    }
+
+    private void logBatchResults(int[] results) {
+        int totalAffected = Arrays.stream(results)
+            .filter(r -> r != Statement.SUCCESS_NO_INFO)
+            .sum();
+        
+        logger.info("Batch execution completed. Total rows affected: {}", totalAffected);
+    }
+
+    // Optional: Add validation before execution
+    public void validateScript(Connection conn, String scriptPath) 
+            throws SQLException, IOException {
+        List<String> statements = SqlScriptParser.parse(new File(scriptPath));
+        
+        for (String sql : statements) {
+            String trimmedSql = sql.trim().toUpperCase();
+            if (isPLSQL(trimmedSql)) {
+                validatePLSQL(conn, sql);
+            } else {
+                validateSQL(conn, sql);
+            }
+        }
+    }
+
+    private void validatePLSQL(Connection conn, String plsql) throws SQLException {
+        // Implementation depends on database type
+        // Example for Oracle:
+        String validateQuery = 
+            "BEGIN " +
+            "    DBMS_UTILITY.COMPILE_SCHEMA(USER, FALSE);" +
+            "    " + plsql + " " +
+            "END;";
+            
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute(validateQuery);
+        }
+    }
+
+    private void validateSQL(Connection conn, String sql) throws SQLException {
+        // Implementation depends on database type
+        // Example for Oracle:
+        String validateQuery = "EXPLAIN PLAN FOR " + sql;
+        
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute(validateQuery);
+        }
+    }
+}
+
+try (Connection conn = dataSource.getConnection()) {
+    SqlScriptExecutor executor = new SqlScriptExecutor();
+    
+    // Optional: Validate before execution
+    executor.validateScript(conn, "path/to/script.sql");
+    
+    // Execute with transaction support
+    executor.executeScriptWithTransaction(conn, "path/to/script.sql");
+}
+
+
+
+ConfigurationHolder (Global Configuration Singleton)
+    │
+    └─> YamlConfigReader
+    
+UnifiedDatabaseRunner (CLI/Entry point)
+    │
+    ├─> UnifiedDatabaseOperation (executes sql, sql scripts, procedures, functions)
+           │
+           ├─> DatabaseConnectionFactory (Connection management)
+           │      │
+           │      ├─> CustomDriver (JDBC driver wrapper)
+           │      └─> ConnectionConfig (Connection settings)
+           │
+           ├─> DatabaserOperationValidator (SQL/PL-SQL validation)
+           │      │
+           │      └─> DatabaseConnectionFactory (For validation)
+           │
+           ├─> Parser Components
+           │      ├─> SqlScriptParser (SQL script parsing)
+           │      └─> StoredProcedure Components
+           │           ├─> StoredProcedureParser
+           │           ├─> StoredProcedureValidator
+           │           ├─> StoredProcedureInfo
+           │           └─> ProcedureParam
+           │
+           └─> Error Handling
+                  ├─> DatabaseErrorFormatter
+                  └─> Exception Hierarchy
+                       ├─> DatabaseException
+                       ├─> DatabaseConnectionException
+                       ├─> DatabaseOperationException
+                       ├─> ParserException
+                       └─> ConfigurationException

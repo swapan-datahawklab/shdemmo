@@ -1,10 +1,9 @@
 package com.example.shelldemo.config;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -12,33 +11,48 @@ import java.util.concurrent.ConcurrentHashMap;
  * Singleton configuration holder that loads and caches application configuration at startup.
  */
 public class ConfigurationHolder {
-    private static final Logger logger = LoggerFactory.getLogger(ConfigurationHolder.class);
+    private static final Logger logger = LogManager.getLogger(ConfigurationHolder.class);
     private static final String CONFIG_PATH = "application.yaml";
     private static ConfigurationHolder instance;
     
     private final YamlConfigReader configReader;
-    private final Map<String, Map<String, Object>> databaseTypes;
-    private final List<Map<String, String>> databaseInstances;
-    private final Map<String, Object> ldapConfig;
+    private final Map<String, DatabaseTypeConfig> databaseTypes;
     private final Map<String, String> runtimeProperties;
 
+    // New static class to represent the database type configuration structure
+    public static class DatabaseTypeConfig {
+        private int defaultPort;
+        private Map<String, TemplateConfig> templates;
+        private Map<String, String> properties;
+
+        public int getDefaultPort() { return defaultPort; }
+        public void setDefaultPort(int defaultPort) { this.defaultPort = defaultPort; }
+        
+        public Map<String, TemplateConfig> getTemplates() { return templates; }
+        public void setTemplates(Map<String, TemplateConfig> templates) { this.templates = templates; }
+        
+        public Map<String, String> getProperties() { return properties; }
+        public void setProperties(Map<String, String> properties) { this.properties = properties; }
+    }
+
+    // New static class to represent template configurations
+    public static class TemplateConfig {
+        private Map<String, String> jdbc;
+        private Map<String, String> sql;
+
+        public Map<String, String> getJdbc() { return jdbc; }
+        public void setJdbc(Map<String, String> jdbc) { this.jdbc = jdbc; }
+        
+        public Map<String, String> getSql() { return sql; }
+        public void setSql(Map<String, String> sql) { this.sql = sql; }
+    }
+
     private ConfigurationHolder() {
-        logger.debug("Initializing ConfigurationHolder");
         this.runtimeProperties = new ConcurrentHashMap<>();
         try {
             this.configReader = new YamlConfigReader(CONFIG_PATH);
-            logger.debug("Loading database types from configuration");
             this.databaseTypes = configReader.readConfig("databases.types", 
-                new TypeReference<Map<String, Map<String, Object>>>() {});
-            logger.debug("Found database types: {}", databaseTypes.keySet());
-            logger.debug("Loading database instances from configuration");
-            this.databaseInstances = configReader.readConfig("databases.instances", 
-                new TypeReference<List<Map<String, String>>>() {});
-            logger.debug("Found {} database instances", databaseInstances.size());
-            logger.debug("Loading LDAP configuration");
-            this.ldapConfig = configReader.readConfig("ldap", 
-                new TypeReference<Map<String, Object>>() {});
-            logger.debug("LDAP configuration loaded with {} entries", ldapConfig.size());
+                new TypeReference<Map<String, DatabaseTypeConfig>>() {});
             logger.info("ConfigurationHolder initialized successfully");
         } catch (IOException e) {
             String errorMessage = "Failed to initialize configuration";
@@ -49,83 +63,79 @@ public class ConfigurationHolder {
 
     public static synchronized ConfigurationHolder getInstance() {
         if (instance == null) {
-            logger.debug("Creating new ConfigurationHolder instance");
             instance = new ConfigurationHolder();
             logger.info("ConfigurationHolder instance created successfully");
         }
         return instance;
     }
 
-    public Map<String, Map<String, Object>> getDatabaseTypes() {
-        logger.trace("Retrieving database types configuration");
+    public Map<String, DatabaseTypeConfig> getDatabaseTypes() {
         return databaseTypes;
     }
 
-    public List<Map<String, String>> getDatabaseInstances() {
-        logger.trace("Retrieving database instances configuration");
-        return databaseInstances;
-    }
-
-    public Map<String, Object> getLdapConfig() {
-        logger.trace("Retrieving LDAP configuration");
-        return ldapConfig;
-    }
-
-    public void setRuntimeProperty(String key, String value) {
-        logger.debug("Setting runtime property: {} = {}", key, 
-            key.toLowerCase().contains("password") ? "********" : value);
-        runtimeProperties.put(key, value);
-    }
-
-    public String getRuntimeProperty(String key) {
-        String value = runtimeProperties.get(key);
-        logger.trace("Retrieved runtime property: {} = {}", key, 
-            key.toLowerCase().contains("password") ? "********" : value);
-        return value;
-    }
-
-    public Map<String, String> getRuntimeProperties() {
-        logger.trace("Creating copy of runtime properties");
-        return new ConcurrentHashMap<>(runtimeProperties);
-    }
-
-    /**
-     * Checks if a database type is valid.
-     *
-     * @param dbType database type to check
-     * @return true if valid, false otherwise
-     */
-    public boolean isValidDbType(String dbType) {
-        boolean isValid = dbType != null && databaseTypes.containsKey(dbType.toLowerCase());
-        logger.trace("Database type {} is {}", dbType, isValid ? "valid" : "invalid");
-        return isValid;
-    }
-
-    /**
-     * Gets the default port for a database type.
-     *
-     * @param dbType database type
-     * @return default port number
-     * @throws ConfigurationException if database type is invalid or missing configuration
-     */
-    public int getDefaultPort(String dbType) {
-        logger.debug("Getting default port for database type: {}", dbType);
+    public DatabaseTypeConfig getDatabaseConfig(String dbType) {
         if (!isValidDbType(dbType)) {
             String errorMessage = "Invalid database type: " + dbType;
             logger.error(errorMessage);
             throw new ConfigurationException(errorMessage, ConfigurationException.ERROR_CODE_INVALID_CONFIG);
         }
-        
-        Map<String, Object> typeConfig = databaseTypes.get(dbType.toLowerCase());
-        Object defaultPort = typeConfig.get("defaultPort");
-        if (defaultPort == null) {
-            String errorMessage = "No default port configured for database type: " + dbType;
-            logger.error(errorMessage);
-            throw new ConfigurationException(errorMessage, ConfigurationException.ERROR_CODE_MISSING_CONFIG);
+        return databaseTypes.get(dbType.toLowerCase());
+    }
+
+    public String getJdbcClientTemplate(String dbType, String templateName) {
+        DatabaseTypeConfig config = getDatabaseConfig(dbType);
+        TemplateConfig templates = config.getTemplates().get("jdbc");
+        Map<String, String> jdbcTemplates = templates.getJdbc();
+        String template = jdbcTemplates.get(templateName);
+        if (template == null) {
+            template = jdbcTemplates.get("default");
         }
-        
-        int port = ((Number) defaultPort).intValue();
-        logger.debug("Retrieved default port {} for database type {}", port, dbType);
-        return port;
+        if (template == null) {
+            throw new ConfigurationException(
+                "No JDBC client template found for " + dbType + " and name " + templateName,
+                ConfigurationException.ERROR_CODE_MISSING_CONFIG
+            );
+        }
+        return template;
+    }
+
+    public String getSqlTemplate(String dbType, String templateName) {
+        DatabaseTypeConfig config = getDatabaseConfig(dbType);
+        TemplateConfig templates = config.getTemplates().get("sql");
+        Map<String, String> sqlTemplates = templates.getSql();
+        String template = sqlTemplates.get(templateName);
+        if (template == null) {
+            throw new ConfigurationException(
+                "No SQL template found for " + dbType + " and name " + templateName,
+                ConfigurationException.ERROR_CODE_MISSING_CONFIG
+            );
+        }
+        return template;
+    }
+
+    public void setRuntimeProperty(String key, String value) {
+        runtimeProperties.put(key, value);
+    }
+
+    public String getRuntimeProperty(String key) {
+        return runtimeProperties.get(key);
+    }
+
+    public Map<String, String> getRuntimeProperties() {
+        return new ConcurrentHashMap<>(runtimeProperties);
+    }
+
+    public boolean isValidDbType(String dbType) {
+        return dbType != null && databaseTypes.containsKey(dbType.toLowerCase());
+    }
+
+    public int getDefaultPort(String dbType) {
+        DatabaseTypeConfig config = getDatabaseConfig(dbType);
+        return config.getDefaultPort();
+    }
+
+    public Map<String, String> getDatabaseProperties(String dbType) {
+        DatabaseTypeConfig config = getDatabaseConfig(dbType);
+        return config.getProperties();
     }
 } 
