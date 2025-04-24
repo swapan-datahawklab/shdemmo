@@ -10,17 +10,17 @@ databases:
     oracle:
       defaultPort: 1521
       templates:
-        jdbc: 
-          default: "jdbc:oracle:thin:@//%s:%d/%s"
+        jdbc:
+          defaultTemplate: "jdbc:oracle:thin:@//%s:%d/%s"
           thin: "jdbc:oracle:thin:@//%s:%d/%s"
           ldap: "jdbc:oracle:thin:@ldap://%s:%d/%s,cn=OracleContext,dc=oracle,dc=com"
-            properties:
-              java.naming.factory.initial: "com.sun.jndi.ldap.LdapCtxFactory"
-              java.naming.security.authentication: "simple"
-              java.naming.security.principal: "cn=admin,dc=example,dc=com"
-              java.naming.security.credentials: "admin123"
-        sql: 
+        sql:
           procedure: "{ ? = call %s(%s) }"
+        properties:
+          java.naming.factory.initial: "com.sun.jndi.ldap.LdapCtxFactory"
+          java.naming.security.authentication: "simple"
+          java.naming.security.principal: "cn=admin,dc=example,dc=com"
+          java.naming.security.credentials: "admin123"
 
     sqlserver:
       defaultPort: 1433
