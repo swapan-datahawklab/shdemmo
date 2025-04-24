@@ -7,7 +7,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.List;
 import java.io.File;
 import java.io.IOException;
 
@@ -27,10 +26,10 @@ public class DatabaserOperationValidator {
      */
     public void validateScript(Connection conn, String scriptPath, boolean showExplainPlan) throws SQLException, IOException {
         logger.info("Starting validation of script: {}", scriptPath);
-        List<String> statements = SqlScriptParser.parse(new File(scriptPath));
+        java.util.Map<Integer, String> parsedStatements = SqlScriptParser.parseSqlFile(new File(scriptPath));
+        java.util.List<String> statements = new java.util.ArrayList<>(parsedStatements.values());
         
         DatabaseOperationValidationContext context = new DatabaseOperationValidationContext(conn, showExplainPlan);
-        
         for (String statement : statements) {
             validateStatement(statement.trim(), context);
         }
@@ -100,24 +99,12 @@ public class DatabaserOperationValidator {
      * Determines if a statement is PL/SQL
      */
     public boolean isPLSQL(String sql) {
-        String upperSql = sql.toUpperCase().trim();
-        
-        // Check for common PL/SQL block start keywords
-        if (upperSql.startsWith("BEGIN") || upperSql.startsWith("DECLARE")) {
-            return true;
-        }
-        
-        // Check for CREATE OR REPLACE statements for PL/SQL objects
-        if (upperSql.startsWith("CREATE") || upperSql.startsWith("CREATE OR REPLACE")) {
-            return upperSql.contains("FUNCTION") || 
-                   upperSql.contains("PROCEDURE") || 
-                   upperSql.contains("PACKAGE") ||
-                   upperSql.contains("TRIGGER") ||
-                   upperSql.contains("TYPE");
-        }
-        
-        // Check for anonymous PL/SQL blocks that might not start with BEGIN or DECLARE
-        return upperSql.contains("BEGIN") && upperSql.contains("END;");
+        // Remove comments for accurate checking
+        String cleanedSql = sql.replaceAll("--.*", "").trim(); // Remove single-line comments
+        return cleanedSql.toUpperCase().startsWith("BEGIN") || 
+               cleanedSql.toUpperCase().startsWith("DECLARE") || 
+               cleanedSql.toUpperCase().startsWith("CREATE") || 
+               cleanedSql.toUpperCase().startsWith("DROP");
     }
 
     /**

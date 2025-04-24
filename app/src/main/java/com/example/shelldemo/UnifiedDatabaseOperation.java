@@ -103,7 +103,9 @@ public class UnifiedDatabaseOperation implements AutoCloseable {
     private List<String> parseSqlFile(File scriptFile) 
             throws DatabaseOperationException {
         try {
-            return SqlScriptParser.parse(scriptFile);
+            Map<Integer, String> parsedScripts = SqlScriptParser.parseSqlFile(scriptFile);
+            List<String> scriptList = new ArrayList<>(parsedScripts.values());
+            return scriptList;
         } catch (IOException e) {
             throw new DatabaseOperationException(
                 "Failed to parse SQL file: " + scriptFile.getName(),
@@ -230,9 +232,15 @@ public class UnifiedDatabaseOperation implements AutoCloseable {
     public int executeScript(File scriptFile, boolean printStatements) throws SQLException {
         logger.info("Executing SQL script: {}", scriptFile.getAbsolutePath());
         
-        List<String> statements = parseSqlFile(scriptFile);
-        logger.debug("Found {} SQL statements in script", statements.size());
-        
+        Map<Integer, String> parsedScripts;
+        try {
+            parsedScripts = SqlScriptParser.parseSqlFile(scriptFile);
+            logger.debug("Found {} SQL statements in script", parsedScripts.size());
+        } catch (IOException e) {
+            logger.error("Error parsing SQL file: {}", e.getMessage());
+            throw new SQLException("Error executing SQL script", e);
+        }
+
         // Store original auto-commit setting
         boolean originalAutoCommit = connection.getAutoCommit();
         
@@ -242,28 +250,37 @@ public class UnifiedDatabaseOperation implements AutoCloseable {
             
             int statementCount = 0;
             try (Statement stmt = connection.createStatement()) {
-                for (String sql : statements) {
+                for (Map.Entry<Integer, String> entry : parsedScripts.entrySet()) {
+                    Integer statementNumber = entry.getKey();
+                    String sql = entry.getValue();
                     statementCount++;
                     
                     if (printStatements) {
-                        logger.info("Executing SQL: {}", sql);
+                        logger.info("Executing SQL statement #{}: {}", statementNumber, sql);
                     } else {
-                        logger.debug("Executing SQL statement #{} (length: {})", statementCount, sql.length());
+                        logger.debug("Executing SQL statement #{} (length: {})", statementNumber, sql.length());
                     }
                     
-                    if (validator.isPLSQL(sql)) {
-                        // Use execute() for PL/SQL blocks 
-                        boolean hasResultSet = stmt.execute(sql);
-                        if (hasResultSet) {
-                            logger.debug("PL/SQL block returned a result set");
+                    try {
+                        if (validator.isPLSQL(sql)) {
+                            logger.debug("Executing PL/SQL block: {}", sql);
+                            // Use execute() for PL/SQL blocks 
+                            boolean hasResultSet = stmt.execute(sql);
+                            if (hasResultSet) {
+                                logger.debug("PL/SQL block returned a result set");
+                            } else {
+                                int affected = stmt.getUpdateCount();
+                                logger.debug("PL/SQL block affected {} rows", affected);
+                            }
                         } else {
-                            int affected = stmt.getUpdateCount();
-                            logger.debug("PL/SQL block affected {} rows", affected);
+                            // Use executeUpdate() for regular SQL statements
+                            logger.debug("Executing SQL statement: {}", sql);
+                            int affected = stmt.executeUpdate(sql);
+                            logger.debug("SQL statement affected {} rows", affected);
                         }
-                    } else {
-                        // Use executeUpdate() for regular SQL statements
-                        int affected = stmt.executeUpdate(sql);
-                        logger.debug("SQL statement affected {} rows", affected);
+                    } catch (SQLException e) {
+                        logger.error("Error executing SQL statement: {}. Error: {}", sql, e.getMessage());
+                        throw e; // Rethrow to handle rollback
                     }
                 }
                 
