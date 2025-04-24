@@ -1,5 +1,8 @@
 package com.example.shelldemo.config;
 
+import com.example.shelldemo.config.model.ApplicationConfig;
+import com.example.shelldemo.config.model.DatabaseTypeConfig;
+import com.example.shelldemo.exception.ConfigurationException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -8,15 +11,16 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Map;
+import java.io.InputStream;
+
 
 /**
  * Generic YAML configuration reader that loads and caches configuration at startup.
  */
 class YamlConfigReader extends AbstractConfigReader {
     private static final Logger logger = LogManager.getLogger(YamlConfigReader.class);
-    private final Map<String, Object> cachedConfig;
     private final String configFilePath;
+    private final ApplicationConfig applicationConfig;
 
     /**
      * Creates a new YamlConfigReader and loads the configuration from the specified file.
@@ -27,19 +31,19 @@ class YamlConfigReader extends AbstractConfigReader {
     public YamlConfigReader(String configFilePath) throws IOException {
         super(new ObjectMapper(new YAMLFactory()));
         this.configFilePath = configFilePath;
-        this.cachedConfig = loadConfig();
-        logger.info("YamlConfigReader initialized successfully with {} configuration entries", cachedConfig.size());
+        this.applicationConfig = loadConfig();
+        logger.info("YamlConfigReader initialized successfully");
     }
 
     /**
-     * Loads the configuration from the YAML file.
+     * Loads the configuration from the YAML file into the ApplicationConfig POJO.
      *
-     * @return The loaded configuration as a Map
+     * @return The loaded configuration as ApplicationConfig
      * @throws IOException If there's an error reading the file
      */
-    private Map<String, Object> loadConfig() throws IOException {
+    private ApplicationConfig loadConfig() throws IOException {
         try {
-            var inputStream = YamlConfigReader.class.getClassLoader().getResourceAsStream(configFilePath);
+            InputStream inputStream = YamlConfigReader.class.getClassLoader().getResourceAsStream(configFilePath);
             if (inputStream == null) {
                 inputStream = Thread.currentThread().getContextClassLoader().getResourceAsStream(configFilePath);
             }
@@ -48,7 +52,7 @@ class YamlConfigReader extends AbstractConfigReader {
                 inputStream = file.toURI().toURL().openStream();
             }
             
-            Map<String, Object> config = objectMapper.readValue(inputStream, new TypeReference<Map<String, Object>>() {});
+            ApplicationConfig config = objectMapper.readValue(inputStream, ApplicationConfig.class);
             return config;
         } catch (IOException e) {
             String errorMessage = "Failed to load configuration from " + configFilePath;
@@ -58,56 +62,80 @@ class YamlConfigReader extends AbstractConfigReader {
     }
 
     /**
-     * Gets a specific configuration section by key.
+     * Gets the root application configuration.
      *
-     * @param key The configuration key to retrieve
-     * @return The configuration value for the specified key
+     * @return The ApplicationConfig object
      */
-    public Object getConfigSection(String key) {
-        return cachedConfig.get(key);
+    public ApplicationConfig getApplicationConfig() {
+        return applicationConfig;
     }
 
     /**
-     * Gets a specific configuration section by key and converts it to the specified type.
+     * Gets the database configuration for a specific database type.
      *
-     * @param key The configuration key to retrieve
-     * @param valueType The type to convert the configuration to
-     * @return The configuration value converted to the specified type
+     * @param dbType The database type (e.g., "oracle", "mysql")
+     * @return The DatabaseTypeConfig for the specified type
+     * @throws ConfigurationException If the database type is not found
      */
-    public <T> T getConfigSection(String key, Class<T> valueType) {
-        Object value = cachedConfig.get(key);
-        if (value == null) {
-            return null;
+    public DatabaseTypeConfig getDatabaseConfig(String dbType) {
+        if (applicationConfig.getDatabases() == null || 
+            applicationConfig.getDatabases().getTypes() == null ||
+            !applicationConfig.getDatabases().getTypes().containsKey(dbType)) {
+            
+            String errorMessage = "Database configuration not found for type: " + dbType;
+            logger.error(errorMessage);
+            throw new ConfigurationException(errorMessage, ConfigurationException.ERROR_CODE_MISSING_CONFIG);
         }
-        try {
-            return objectMapper.convertValue(value, valueType);
-        } catch (IllegalArgumentException e) {
-            String errorMessage = String.format("Failed to convert configuration value for key '%s' to type %s", 
-                key, valueType.getSimpleName());
-            logger.error(errorMessage, e);
-            throw new ConfigurationException(errorMessage, e, ConfigurationException.ERROR_CODE_PARSE_ERROR);
-        }
+        
+        return applicationConfig.getDatabases().getTypes().get(dbType);
     }
 
+    /**
+     * Gets a database template by type, category, and name.
+     *
+     * @param dbType The database type (e.g., "oracle", "mysql")
+     * @param category The template category (e.g., "jdbc", "sql")
+     * @param templateName The template name within the category
+     * @return The template string
+     * @throws ConfigurationException If the template is not found
+     */
+    public String getDatabaseTemplate(String dbType, String category, String templateName) {
+        DatabaseTypeConfig dbConfig = getDatabaseConfig(dbType);
+        String template = dbConfig.getTemplate(category, templateName);
+        
+        if (template == null) {
+            String errorMessage = String.format(
+                "Template not found for database: %s, category: %s, name: %s",
+                dbType, category, templateName);
+            logger.error(errorMessage);
+            throw new ConfigurationException(errorMessage, ConfigurationException.ERROR_CODE_MISSING_CONFIG);
+        }
+        
+        return template;
+    }
+    
     @Override
     public <T> T readConfig(String path, TypeReference<T> typeRef) throws IOException {
+        // This is a legacy method, but we'll keep it for backward compatibility
         try {
             String[] pathParts = path.split("\\.");
-            Object currentValue = cachedConfig;
+            Object currentValue = applicationConfig;
             
             for (String part : pathParts) {
-                if (currentValue instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> map = (Map<String, Object>) currentValue;
-                    currentValue = map.get(part);
-                    if (currentValue == null) {
-                        String errorMessage = "Configuration not found for path: " + path;
-                        logger.error(errorMessage);
-                        throw new ConfigurationException(errorMessage, ConfigurationException.ERROR_CODE_MISSING_CONFIG);
-                    }
-                } else {
-                    String errorMessage = "Invalid path: " + path;
+                if (currentValue == null) {
+                    String errorMessage = "Configuration not found for path: " + path;
                     logger.error(errorMessage);
+                    throw new ConfigurationException(errorMessage, ConfigurationException.ERROR_CODE_MISSING_CONFIG);
+                }
+                
+                // Use reflection to navigate the path
+                String getterName = "get" + part.substring(0, 1).toUpperCase() + part.substring(1);
+                try {
+                    java.lang.reflect.Method getter = currentValue.getClass().getMethod(getterName);
+                    currentValue = getter.invoke(currentValue);
+                } catch (Exception e) {
+                    String errorMessage = "Invalid path or missing property: " + path + " at part: " + part;
+                    logger.error(errorMessage, e);
                     throw new ConfigurationException(errorMessage, ConfigurationException.ERROR_CODE_INVALID_CONFIG);
                 }
             }
@@ -130,4 +158,4 @@ class YamlConfigReader extends AbstractConfigReader {
             throw new ConfigurationException(errorMessage, e, ConfigurationException.ERROR_CODE_PARSE_ERROR);
         }
     }
-} 
+}

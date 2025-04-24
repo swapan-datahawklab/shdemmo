@@ -100,14 +100,24 @@ public class DatabaserOperationValidator {
      * Determines if a statement is PL/SQL
      */
     public boolean isPLSQL(String sql) {
-        String upperSql = sql.toUpperCase();
-        return upperSql.startsWith("BEGIN") || 
-               upperSql.startsWith("DECLARE") || 
-               upperSql.startsWith("CREATE") ||
-               upperSql.contains("END;") ||
-               upperSql.contains("PROCEDURE") ||
-               upperSql.contains("FUNCTION") ||
-               upperSql.contains("PACKAGE");
+        String upperSql = sql.toUpperCase().trim();
+        
+        // Check for common PL/SQL block start keywords
+        if (upperSql.startsWith("BEGIN") || upperSql.startsWith("DECLARE")) {
+            return true;
+        }
+        
+        // Check for CREATE OR REPLACE statements for PL/SQL objects
+        if (upperSql.startsWith("CREATE") || upperSql.startsWith("CREATE OR REPLACE")) {
+            return upperSql.contains("FUNCTION") || 
+                   upperSql.contains("PROCEDURE") || 
+                   upperSql.contains("PACKAGE") ||
+                   upperSql.contains("TRIGGER") ||
+                   upperSql.contains("TYPE");
+        }
+        
+        // Check for anonymous PL/SQL blocks that might not start with BEGIN or DECLARE
+        return upperSql.contains("BEGIN") && upperSql.contains("END;");
     }
 
     /**

@@ -25,7 +25,12 @@ public final class SqlScriptParser {
     private static final String MULTI_LINE_COMMENT_START = "/*";
     private static final String MULTI_LINE_COMMENT_END = "*/";
     private static final Pattern WHITESPACE = Pattern.compile("^\\s*$");
-    private static final Pattern PLSQL_START = Pattern.compile("^(BEGIN|DECLARE|CREATE\\s+OR\\s+REPLACE\\s+(FUNCTION|PROCEDURE|TRIGGER|PACKAGE))\\s+.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PLSQL_START = Pattern.compile("^(BEGIN|DECLARE|CREATE\\s+(OR\\s+REPLACE\\s+)?(" +
+        "FUNCTION|PROCEDURE|TRIGGER|PACKAGE|PACKAGE\\s+BODY|" +
+        "TYPE|TYPE\\s+BODY|VIEW|MATERIALIZED\\s+VIEW|" +
+        "LIBRARY|JAVA|CONTEXT|DIRECTORY|SYNONYM|EDITION|" +
+        "DATABASE\\s+TRIGGER|INSTEAD\\s+OF\\s+TRIGGER))\\s+.*", 
+        Pattern.CASE_INSENSITIVE);
 
     private SqlScriptParser() {
         throw new AssertionError("Utility class - do not instantiate");
@@ -129,11 +134,18 @@ public final class SqlScriptParser {
         }
 
         // Check if we're starting a PL/SQL block
-        if (!state.inPlsqlBlock && PLSQL_START.matcher(processedLine).matches()) {
+        // This includes any statement starting with CREATE OR REPLACE
+        if (!state.inPlsqlBlock && 
+            (PLSQL_START.matcher(processedLine).matches() || 
+             processedLine.toUpperCase().startsWith("CREATE ") || 
+             processedLine.toUpperCase().startsWith("CREATE OR REPLACE "))) {
             state.inPlsqlBlock = true;
+            logger.debug("Detected PL/SQL block starting with: {}", 
+                         processedLine.length() > 50 ? processedLine.substring(0, 50) + "..." : processedLine);
         }
 
         // Handle forward slash delimiter on a line by itself
+        // This is the Oracle SQL*Plus style terminator for PL/SQL blocks
         if (FORWARD_SLASH_DELIMITER.equals(processedLine)) {
             if (state.inPlsqlBlock) {
                 if (!state.currentStatement.toString().trim().isEmpty()) {
@@ -141,6 +153,9 @@ public final class SqlScriptParser {
                     state.inPlsqlBlock = false;
                     state.hasContent = false;
                 }
+            } else {
+                // Log warning if forward slash is found outside of PL/SQL block
+                logger.warn("Forward slash delimiter found outside of PL/SQL block - ignoring");
             }
             return;
         }
@@ -160,12 +175,14 @@ public final class SqlScriptParser {
                 addStatement(state, statements);
                 state.hasContent = false;
             }
+            // Do not strip semicolons within PL/SQL blocks - they are required syntax
         }
     }
 
     private static void addStatement(ParseState state, List<String> statements) {
         String sql = state.currentStatement.toString().trim();
         // Remove the trailing semicolon only for non-PL/SQL statements
+        // For PL/SQL blocks, we must preserve all semicolons inside the block
         if (!state.inPlsqlBlock && sql.endsWith(SEMICOLON_DELIMITER)) {
             sql = sql.substring(0, sql.length() - SEMICOLON_DELIMITER.length()).trim();
         }

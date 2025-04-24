@@ -1,5 +1,6 @@
 package com.example.shelldemo.config;
 
+import com.example.shelldemo.exception.ConfigurationException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.io.IOException;
 import java.util.Map;

@@ -1,6 +1,4 @@
-package com.example.shelldemo.config;
-
-import com.example.shelldemo.exception.DatabaseException;
+package com.example.shelldemo.exception;
 
 /**
  * Exception thrown when there are configuration-related errors.

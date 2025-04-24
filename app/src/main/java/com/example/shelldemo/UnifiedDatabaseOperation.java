@@ -1,5 +1,8 @@
 package com.example.shelldemo;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -10,9 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.io.File;
 import java.io.IOException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ServiceLoader;
@@ -39,7 +39,7 @@ import com.example.shelldemo.parser.storedproc.StoredProcedureInfo;
  */
 public class UnifiedDatabaseOperation implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(UnifiedDatabaseOperation.class);
-
+    
 
     private final String dbType;
     private final ConnectionConfig config;
@@ -52,6 +52,7 @@ public class UnifiedDatabaseOperation implements AutoCloseable {
         try {
             return new UnifiedDatabaseOperation(dbType, config);
         } catch (Exception e) {
+
             throw new DatabaseOperationException(
                 "Failed to create database operation for type: " + dbType,
                 e,
@@ -209,7 +210,7 @@ public class UnifiedDatabaseOperation implements AutoCloseable {
     }
 
 
-    public Object executeStoredProcedure(String procedureName, boolean isFunction, Object... params) throws SQLException {
+    public Object executeStoredProcedure(String procedureName, boolean isFunction, Object... params) {
         logger.info("Executing stored procedure: {}", procedureName);
         
         // Parse and validate the procedure name
@@ -226,40 +227,79 @@ public class UnifiedDatabaseOperation implements AutoCloseable {
     }
 
 
-    public int executeScript(File scriptFile, boolean printStatements) throws IOException, SQLException {
+    public int executeScript(File scriptFile, boolean printStatements) throws SQLException {
         logger.info("Executing SQL script: {}", scriptFile.getAbsolutePath());
         
         List<String> statements = parseSqlFile(scriptFile);
         logger.debug("Found {} SQL statements in script", statements.size());
         
-        int statementCount = 0;
-        try (Statement stmt = connection.createStatement()) {
-            for (String sql : statements) {
-                statementCount++;
-                
-                if (printStatements) {
-                    logger.info("Executing SQL: {}", sql);
-                } else {
-                    logger.debug("Executing SQL statement (length: {})", sql.length());
+        // Store original auto-commit setting
+        boolean originalAutoCommit = connection.getAutoCommit();
+        
+        try {
+            // Disable auto-commit for transaction management
+            connection.setAutoCommit(false);
+            
+            int statementCount = 0;
+            try (Statement stmt = connection.createStatement()) {
+                for (String sql : statements) {
+                    statementCount++;
+                    
+                    if (printStatements) {
+                        logger.info("Executing SQL: {}", sql);
+                    } else {
+                        logger.debug("Executing SQL statement #{} (length: {})", statementCount, sql.length());
+                    }
+                    
+                    if (validator.isPLSQL(sql)) {
+                        // Use execute() for PL/SQL blocks 
+                        boolean hasResultSet = stmt.execute(sql);
+                        if (hasResultSet) {
+                            logger.debug("PL/SQL block returned a result set");
+                        } else {
+                            int affected = stmt.getUpdateCount();
+                            logger.debug("PL/SQL block affected {} rows", affected);
+                        }
+                    } else {
+                        // Use executeUpdate() for regular SQL statements
+                        int affected = stmt.executeUpdate(sql);
+                        logger.debug("SQL statement affected {} rows", affected);
+                    }
                 }
                 
-                if (validator.isPLSQL(sql)) {
-                    // Use execute() for PL/SQL blocks since they may contain multiple statements
-                    stmt.execute(sql);
-                    logger.debug("Executed PL/SQL block successfully");
-                } else {
-                    // Use executeUpdate() for regular SQL statements
-                    int affected = stmt.executeUpdate(sql);
-                    logger.debug("SQL statement affected {} rows", affected);
+                // Commit all changes if everything succeeded
+                connection.commit();
+                logger.info("Script execution completed successfully - {} statements executed", statementCount);
+                return statementCount;
+            } catch (SQLException e) {
+                // Roll back on any error
+                try {
+                    connection.rollback();
+                    logger.warn("Transaction rolled back due to error");
+                } catch (SQLException rollbackEx) {
+                    logger.error("Failed to roll back transaction after error", rollbackEx);
                 }
+                
+                String errorMessage = String.format("Failed to execute script: %s at statement #%d",
+                    scriptFile.getName(), statementCount);
+                logger.error(errorMessage, e);
+                throw new DatabaseOperationException(
+                    errorMessage,
+                    e,
+                    DatabaseOperationException.ERROR_CODE_QUERY_FAILED
+                );
+            }
+        } finally {
+            // Restore original auto-commit setting
+            try {
+                connection.setAutoCommit(originalAutoCommit);
+            } catch (SQLException e) {
+                logger.warn("Failed to restore auto-commit setting: {}", e.getMessage());
             }
         }
-        
-        logger.info("Script execution completed successfully - {} statements executed", statements.size());
-        return statementCount;
     }
 
-    public int executeScriptWithBatching(File scriptFile, boolean printStatements) throws IOException, SQLException {
+    public int executeScriptWithBatching(File scriptFile, boolean printStatements) throws SQLException {
         logger.info("Executing SQL script with batching: {}", scriptFile.getAbsolutePath());
         
         List<String> statements = parseSqlFile(scriptFile);
