@@ -8,7 +8,6 @@ import org.apache.logging.log4j.Logger;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.io.File;
-import java.io.IOException;
 
 public class DatabaserOperationValidator {
     private static final Logger logger = LogManager.getLogger(DatabaserOperationValidator.class);
@@ -24,7 +23,7 @@ public class DatabaserOperationValidator {
     /**
      * Main validation method that orchestrates the validation process
      */
-    public void validateScript(Connection conn, String scriptPath, boolean showExplainPlan) throws SQLException, IOException {
+    public void validateScript(Connection conn, String scriptPath, boolean showExplainPlan) throws SQLException {
         logger.info("Starting validation of script: {}", scriptPath);
         java.util.Map<Integer, String> parsedStatements = SqlScriptParser.parseSqlFile(new File(scriptPath));
         java.util.List<String> statements = new java.util.ArrayList<>(parsedStatements.values());

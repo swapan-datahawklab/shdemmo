@@ -1,7 +1,9 @@
-package com.example.shelldemo;
+package com.example.shelldemo.login;
 
-import com.example.shelldemo.exception.DatabaseConnectionException;
-import com.example.shelldemo.exception.DatabaseOperationException;
+import com.example.shelldemo.login.exception.DatabaseConnectionException;
+import com.example.shelldemo.login.exception.DatabaseOperationException;
+import com.example.shelldemo.UnifiedDatabaseOperation;
+import com.example.shelldemo.connection.ConnectionConfig;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,9 +50,13 @@ public class DatabaseLoginService {
         
         // Create virtual thread executor
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            DatabaseLoginServiceTestResult result = executor.submit(() -> testDatabase()).get();
+            DatabaseLoginServiceTestResult result = executor.submit(this::testDatabase).get();
             List<DatabaseLoginServiceTestResult> results = List.of(result);
             writeResultsToCsv(results, outputFile);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.error("Database test interrupted", e);
+            throw new IOException("Database test interrupted", e);
         } catch (Exception e) {
             logger.error("Error running database tests", e);
             throw new IOException("Failed to run database tests", e);
@@ -66,7 +72,13 @@ public class DatabaseLoginService {
         
         try {
             // Run database test using UnifiedDatabaseOperation
-            try (UnifiedDatabaseOperation operation = UnifiedDatabaseOperation.create("oracle", null)) {
+            ConnectionConfig config = new ConnectionConfig();
+            config.setHost("localhost");
+            config.setServiceName("test");
+            config.setUsername("test");
+            config.setPassword("test");
+            
+            try (UnifiedDatabaseOperation operation = UnifiedDatabaseOperation.create("oracle", config)) {
                 List<Map<String, Object>> results = operation.executeQuery(getTestQuery("oracle"));
                 long responseTime = System.currentTimeMillis() - startTime;
                 
@@ -87,7 +99,7 @@ public class DatabaseLoginService {
                     .dbType("oracle")
                     .success(false)
                     .responseTimeMs(responseTime)
-                    .error(e.getMessage(), e.getCause() instanceof SQLException ? ((SQLException) e.getCause()).getSQLState() : "ERROR")
+                    .error(e.getMessage(), e.getCause() instanceof SQLException sqlException ? sqlException.getSQLState() : "ERROR")
                     .build();
             }
         } catch (Exception e) {

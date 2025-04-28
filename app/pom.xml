@@ -41,19 +41,16 @@
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
-      <version>${junit.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
         <groupId>org.junit.platform</groupId>
         <artifactId>junit-platform-launcher</artifactId>
-        <version>${junit-platform.version}</version>
         <scope>test</scope>
     </dependency>
     <dependency>
         <groupId>org.junit.jupiter</groupId>
         <artifactId>junit-jupiter</artifactId>
-        <version>${junit.version}</version>
         <scope>test</scope>
     </dependency>
 
@@ -79,7 +76,6 @@
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
-      <version>${junit.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -91,6 +87,8 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
           <skipTests>false</skipTests>
+          <forkCount>0</forkCount>
+          <reuseForks>false</reuseForks>
           <includes>
             <include>**/*Test.java</include>
           </includes>
@@ -101,51 +99,6 @@
             --add-opens java.base/java.time=ALL-UNNAMED
           </argLine>
         </configuration>
-      </plugin>
-
-      <!-- JaCoCo Code Coverage -->
-      <plugin>
-        <groupId>org.jacoco</groupId>
-        <artifactId>jacoco-maven-plugin</artifactId>
-        <executions>
-          <execution>
-            <id>prepare-agent</id>
-            <goals>
-              <goal>prepare-agent</goal>
-            </goals>
-          </execution>
-          <execution>
-            <id>report</id>
-            <phase>test</phase>
-            <goals>
-              <goal>report</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-
-      <!-- Site and Report Generation -->
-      <plugin>
-        <artifactId>maven-site-plugin</artifactId>
-        <configuration>
-          <generateReports>true</generateReports>
-        </configuration>
-      </plugin>
-
-      <!-- Surefire Reports -->
-      <plugin>
-        <artifactId>maven-surefire-report-plugin</artifactId>
-        <configuration>
-          <outputDirectory>${project.reporting.outputDirectory}/surefire-reports</outputDirectory>
-        </configuration>
-        <executions>
-          <execution>
-            <phase>test</phase>
-            <goals>
-              <goal>report</goal>
-            </goals>
-          </execution>
-        </executions>
       </plugin>
 
       <!-- Compiles Java source code and processes annotations -->
@@ -249,35 +202,4 @@
       </plugin>
     </plugins>
   </build>
-
-  <!-- Add reporting section -->
-  <reporting>
-    <plugins>
-      <!-- Surefire Report -->
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-report-plugin</artifactId>
-        <reportSets>
-          <reportSet>
-            <reports>
-              <report>report-only</report>
-            </reports>
-          </reportSet>
-        </reportSets>
-      </plugin>
-
-      <!-- JaCoCo Report -->
-      <plugin>
-        <groupId>org.jacoco</groupId>
-        <artifactId>jacoco-maven-plugin</artifactId>
-        <reportSets>
-          <reportSet>
-            <reports>
-              <report>report</report>
-            </reports>
-          </reportSet>
-        </reportSets>
-      </plugin>
-    </plugins>
-  </reporting>
 </project> 

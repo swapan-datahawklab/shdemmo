@@ -52,8 +52,7 @@ class YamlConfigReader extends AbstractConfigReader {
                 inputStream = file.toURI().toURL().openStream();
             }
             
-            ApplicationConfig config = objectMapper.readValue(inputStream, ApplicationConfig.class);
-            return config;
+            return objectMapper.readValue(inputStream, ApplicationConfig.class);
         } catch (IOException e) {
             String errorMessage = "Failed to load configuration from " + configFilePath;
             logger.error(errorMessage, e);
@@ -130,14 +129,7 @@ class YamlConfigReader extends AbstractConfigReader {
                 
                 // Use reflection to navigate the path
                 String getterName = "get" + part.substring(0, 1).toUpperCase() + part.substring(1);
-                try {
-                    java.lang.reflect.Method getter = currentValue.getClass().getMethod(getterName);
-                    currentValue = getter.invoke(currentValue);
-                } catch (Exception e) {
-                    String errorMessage = "Invalid path or missing property: " + path + " at part: " + part;
-                    logger.error(errorMessage, e);
-                    throw new ConfigurationException(errorMessage, ConfigurationException.ERROR_CODE_INVALID_CONFIG);
-                }
+                currentValue = getPropertyValue(currentValue, getterName, path, part);
             }
             
             return objectMapper.convertValue(currentValue, typeRef);
@@ -156,6 +148,27 @@ class YamlConfigReader extends AbstractConfigReader {
             String errorMessage = "Failed to convert configuration value";
             logger.error(errorMessage, e);
             throw new ConfigurationException(errorMessage, e, ConfigurationException.ERROR_CODE_PARSE_ERROR);
+        }
+    }
+
+    /**
+     * Retrieves a property value using reflection.
+     *
+     * @param object The object to get the property from
+     * @param getterName The name of the getter method
+     * @param fullPath The full path being processed (for error reporting)
+     * @param pathPart The current part of the path (for error reporting)
+     * @return The property value
+     * @throws ConfigurationException If the property cannot be accessed
+     */
+    private Object getPropertyValue(Object object, String getterName, String fullPath, String pathPart) {
+        try {
+            java.lang.reflect.Method getter = object.getClass().getMethod(getterName);
+            return getter.invoke(object);
+        } catch (Exception e) {
+            String errorMessage = "Invalid path or missing property: " + fullPath + " at part: " + pathPart;
+            logger.error(errorMessage, e);
+            throw new ConfigurationException(errorMessage, ConfigurationException.ERROR_CODE_INVALID_CONFIG);
         }
     }
 }

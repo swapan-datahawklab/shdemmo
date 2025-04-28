@@ -11,7 +11,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 
-public class SqlScriptParserTest {
+class SqlScriptParserTest {
 
     @TempDir
     Path tempDir;
@@ -81,7 +81,7 @@ public class SqlScriptParserTest {
     }
     
     @Test
-    void testParsePLSQLBlocksWithForwardSlashDelimiter() throws IOException {
+    void testParsePLSQLBlocksWithForwardSlashDelimiter() {
         // Parse the PL/SQL script
         Map<Integer, String> statements = SqlScriptParser.parseSqlFile(plsqlScriptFile);
         
@@ -123,7 +123,7 @@ public class SqlScriptParserTest {
     }
     
     @Test
-    void testParseMixedSqlAndPlsql() throws IOException {
+    void testParseMixedSqlAndPlsql() {
         // Parse the mixed script
         Map<Integer, String> statements = SqlScriptParser.parseSqlFile(mixedScriptFile);
         

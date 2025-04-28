@@ -4,7 +4,7 @@ This directory contains various utility scripts for project management, testing,
 
 ## Directory Structure
 
-```
+```bash
 scripts/
 ├── analysis/              # Code and project analysis scripts
 │   ├── analyze_codebase.sh
@@ -25,6 +25,7 @@ scripts/
 ## Analysis Scripts
 
 ### analyze_codebase.sh
+
 Comprehensive codebase analysis tool.
 
 ```bash
@@ -46,6 +47,7 @@ Examples:
 ```
 
 ### analyze_structure.sh
+
 Analyzes and generates Mermaid diagrams of project structure.
 
 ```bash
@@ -63,6 +65,7 @@ Example:
 ## Documentation Scripts
 
 ### document_structure.sh
+
 Generates documentation for project structure including memory bank and source code.
 
 ```bash
@@ -83,6 +86,7 @@ Features:
 ## Testing Scripts
 
 ### test_unified_db_runner.sh
+
 Tests the UnifiedDatabaseRunner against Oracle database.
 
 ```bash
@@ -94,19 +98,23 @@ Tests the UnifiedDatabaseRunner against Oracle database.
 ```
 
 #### Interactive Mode Features
+
 - Run tests one at a time
 - View detailed test output in a paginated format
 - Choose which tests to run
 - See test descriptions before running
 
 #### Interactive Mode Usage
+
 1. Start interactive mode:
-   ```bash
-   ./scripts/testing/test_unified_db_runner.sh --interactive
-   ```
+
+```bash
+./scripts/testing/test_unified_db_runner.sh --interactive
+```
 
 2. Navigate the menu:
-   ```
+
+```bash
    Available Tests:
    1) Basic SQL execution
       Description: Demonstrates basic SQL execution including DDL and DML statements
@@ -125,7 +133,7 @@ Tests the UnifiedDatabaseRunner against Oracle database.
 
    6) Run all tests
    7) Exit
-   ```
+```
 
 3. Test Output Navigation:
    - Use arrow keys to scroll through test output
@@ -141,43 +149,48 @@ Tests the UnifiedDatabaseRunner against Oracle database.
 #### Test Types and Examples
 
 1. **Basic SQL Execution**
-   ```bash
-   # Example output shows:
-   - Table creation
-   - Data insertion
-   - Query execution
+
+```bash
+# Example output shows:
+- Table creation
+- Data insertion
+- Query execution
    ```
 
 2. **SQL with Print Statements**
-   ```bash
-   # Shows SQL statements before execution:
-   - CREATE TABLE statements
-   - INSERT statements
-   - SELECT statements
-   ```
+
+```bash
+# Shows SQL statements before execution:
+- CREATE TABLE statements
+- INSERT statements
+- SELECT statements
+```
 
 3. **SQL with Auto-commit**
-   ```bash
-   # Demonstrates:
-   - Immediate data persistence
-   - Transaction handling
-   ```
+
+```bash
+# Demonstrates:
+- Immediate data persistence
+- Transaction handling
+```
 
 4. **Stored Procedure Execution**
-   ```bash
-   # Tests stored procedures with:
-   - Input parameters
-   - Output parameters
-   - Error handling
-   ```
+
+```bash
+# Tests stored procedures with:
+- Input parameters
+- Output parameters
+- Error handling
+```
 
 5. **Function Execution**
-   ```bash
-   # Shows function calls with:
-   - Return values
-   - Parameter passing
-   - Error scenarios
-   ```
+
+```bash
+# Shows function calls with:
+- Return values
+- Parameter passing
+- Error scenarios
+```
 
 #### Troubleshooting Interactive Mode
 
@@ -195,20 +208,22 @@ Tests the UnifiedDatabaseRunner against Oracle database.
    - Try setting: `export LESS="-R"`
 
 4. **Common Error Messages**
-   ```bash
-   # Database connection failed
-   - Verify Docker container is running
-   - Check database credentials
-   
-   # Permission denied
-   - Check file permissions
-   - Verify script is executable
-   
-   # Invalid test selection
-   - Enter only numbers within the displayed range
-   ```
+
+```bash
+# Database connection failed
+- Verify Docker container is running
+- Check database credentials
+
+# Permission denied
+- Check file permissions
+- Verify script is executable
+
+# Invalid test selection
+- Enter only numbers within the displayed range
+```
 
 ### test_manager.sh
+
 Manages and executes different types of tests.
 
 ```bash
@@ -226,6 +241,7 @@ Output:
 ```
 
 ### test_memory_bank.sh
+
 Validates memory bank structure and content.
 
 ```bash
@@ -241,6 +257,7 @@ Checks:
 ## Validation Scripts
 
 ### validate_output.sh
+
 Validates command outputs and file changes.
 
 ```bash
@@ -261,6 +278,7 @@ Output:
 ## Template Scripts
 
 ### process_template.sh
+
 Processes templates for memory bank and documentation.
 
 ```bash
@@ -279,29 +297,34 @@ Example:
 ## Common Usage Patterns
 
 1. **Full Project Analysis**:
-   ```bash
-   ./scripts/analysis/analyze_codebase.sh structure
-   ./scripts/documentation/document_structure.sh
-   ```
+
+```bash
+./scripts/analysis/analyze_codebase.sh structure
+./scripts/documentation/document_structure.sh
+```
 
 2. **Run All Tests**:
-   ```bash
-   ./scripts/testing/test_manager.sh
-   ```
+
+```bash
+./scripts/testing/test_manager.sh
+```
 
 3. **Database Testing**:
-   ```bash
-   ./scripts/testing/test_unified_db_runner.sh
+
+```bash
+./scripts/testing/test_unified_db_runner.sh
    ```
 
 4. **Documentation Update**:
-   ```bash
-   ./scripts/documentation/document_structure.sh
-   ```
+
+```bash
+./scripts/documentation/document_structure.sh
+```
 
 ## Logging
 
 All scripts use a consistent logging structure:
+
 - Logs are stored in `logs/<category>/<script_name>.<timestamp>.log`
 - Log levels: INFO, DEBUG, ERROR, SUCCESS
 - Color-coded output for better visibility
@@ -309,6 +332,7 @@ All scripts use a consistent logging structure:
 ## Error Handling
 
 Scripts follow these error handling practices:
+
 1. Non-zero exit codes for failures
 2. Detailed error messages in logs
 3. Cleanup on failure when appropriate
@@ -319,4 +343,4 @@ Scripts follow these error handling practices:
 - Bash shell
 - Docker (for database tests)
 - Java/Maven (for Java-related scripts)
-- Git (for version control related features) 
+- Git (for version control related features)

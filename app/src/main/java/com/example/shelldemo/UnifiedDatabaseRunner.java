@@ -123,7 +123,7 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
         return params;
     }
 
-    private void validateStatements(File scriptFile) throws IOException, SQLException {
+    private void validateStatements(File scriptFile) throws SQLException {
         logger.info("Starting pre-flight validation of {}", scriptFile.getName());
         dbOperation.validateScript(scriptFile, showExplainPlan);
     }
@@ -161,7 +161,7 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
             }
 
             logger.debug("Executing as script file: {}", scriptFile.getAbsolutePath());
-            operation.executeScript(scriptFile, printStatements);
+            operation.executeScript(scriptFile);
             return 0;
         } catch (Exception e) {
             logger.error("Operation failed: {}", e.getMessage(), e);
