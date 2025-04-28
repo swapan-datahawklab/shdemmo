@@ -50,7 +50,6 @@
         <Async name="AsyncFile">
             <AppenderRef ref="File"/>
             <BufferSize>1000</BufferSize>
-            <DiscardingThreshold>INFO</DiscardingThreshold>
         </Async>
     </Appenders>
 

@@ -42,7 +42,7 @@ tmp/
 local.properties
 
 # IDE - VS Code
-.vscode/
+
 .code-workspace
 
 # IDE - NetBeans

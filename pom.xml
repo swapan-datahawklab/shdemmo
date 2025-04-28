@@ -41,21 +41,11 @@
     <maven.jar.plugin.version>3.0.2</maven.jar.plugin.version>
     <maven.shade.plugin.version>3.5.1</maven.shade.plugin.version>
     <maven.exec.plugin.version>3.2.0</maven.exec.plugin.version>
-    <maven-project-info-reports-plugin.version>3.4.5</maven-project-info-reports-plugin.version>
-    <maven-site-plugin.version>3.12.1</maven-site-plugin.version>
-    <jacoco-maven-plugin.version>0.8.11</jacoco-maven-plugin.version>
-    <maven-surefire-report-plugin.version>3.2.5</maven-surefire-report-plugin.version>
-    <doxia.version>1.12.0</doxia.version>
     
     <!-- OS properties -->
     <os.unix>true</os.unix>
     <os.windows>true</os.windows>
     <skip.bundle.creation>true</skip.bundle.creation>
-
-    <!-- Testing and Reporting Versions -->
-    <maven-site-plugin.version>3.12.1</maven-site-plugin.version>
-    <jacoco-maven-plugin.version>0.8.11</jacoco-maven-plugin.version>
-    <maven-surefire-report-plugin.version>${maven.surefire.plugin.version}</maven-surefire-report-plugin.version>
   </properties>
 
   <dependencyManagement>
@@ -105,6 +95,32 @@
         <artifactId>jackson-databind</artifactId>
         <version>${jackson.version}</version>
       </dependency>
+      
+      <!-- JUnit Dependencies -->
+      <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter-engine</artifactId>
+        <version>${junit.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter-api</artifactId>
+        <version>${junit.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <version>${junit.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.junit.platform</groupId>
+        <artifactId>junit-platform-launcher</artifactId>
+        <version>${junit-platform.version}</version>
+        <scope>test</scope>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
@@ -121,6 +137,10 @@
         <plugin>
           <artifactId>maven-surefire-plugin</artifactId>
           <version>${maven.surefire.plugin.version}</version>
+          <configuration>
+            <forkCount>0</forkCount>
+            <reuseForks>false</reuseForks>
+          </configuration>
         </plugin>
 
         <!-- Creates JAR file -->
@@ -155,60 +175,7 @@
           <artifactId>versions-maven-plugin</artifactId>
           <version>${versions.plugin.version}</version>
         </plugin>
-
-        <!-- Site and Report Generation -->
-        <plugin>
-          <artifactId>maven-site-plugin</artifactId>
-          <version>${maven-site-plugin.version}</version>
-        </plugin>
-
-        <!-- JaCoCo Code Coverage -->
-        <plugin>
-          <groupId>org.jacoco</groupId>
-          <artifactId>jacoco-maven-plugin</artifactId>
-          <version>${jacoco-maven-plugin.version}</version>
-        </plugin>
-
-        <!-- Surefire Reports -->
-        <plugin>
-          <artifactId>maven-surefire-report-plugin</artifactId>
-          <version>${maven-surefire-report-plugin.version}</version>
-        </plugin>
       </plugins>
     </pluginManagement>
   </build>
-
-  <reporting>
-    <plugins>
-      <!-- Project Info Reports -->
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-project-info-reports-plugin</artifactId>
-        <version>${maven-project-info-reports-plugin.version}</version>
-      </plugin>
-
-      <!-- Surefire Test Reports -->
-      <plugin>
-        <artifactId>maven-surefire-report-plugin</artifactId>
-        <version>${maven-surefire-report-plugin.version}</version>
-        <configuration>
-          <showSuccess>true</showSuccess>
-        </configuration>
-      </plugin>
-    </plugins>
-  </reporting>
-
-  <dependencies>
-    <!-- Add Doxia dependencies -->
-    <dependency>
-      <groupId>org.apache.maven.doxia</groupId>
-      <artifactId>doxia-core</artifactId>
-      <version>${doxia.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.maven.doxia</groupId>
-      <artifactId>doxia-sink-api</artifactId>
-      <version>${doxia.version}</version>
-    </dependency>
-  </dependencies>
 </project>

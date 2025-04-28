@@ -13,11 +13,12 @@
 
     <artifactId>database-login-validation-tool</artifactId>
     <description>A tool for validating database connections using the core database functionality from the app module</description>
+    <packaging>jar</packaging>
 
     <dependencies>
         <dependency>
-            <groupId>com.example</groupId>
-            <artifactId>app</artifactId>
+            <groupId>com.example.shelldemo</groupId>
+            <artifactId>shdemmo-app</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

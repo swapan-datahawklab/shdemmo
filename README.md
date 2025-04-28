@@ -72,6 +72,7 @@ This project follows a standard Maven/Java project structure with separate sourc
 The project includes comprehensive tools for code analysis, structure verification, and testing:
 
 #### 1. Project Structure Analysis
+
 ```bash
 # Show complete project structure
 ./scripts/project-analysis/analyze.sh structure
@@ -84,6 +85,7 @@ The project includes comprehensive tools for code analysis, structure verificati
 ```
 
 #### 2. Code Pattern Analysis
+
 ```bash
 # Find similar code patterns
 ./scripts/project-analysis/analyze.sh similar 'pattern' ['*.ext']
@@ -93,7 +95,8 @@ The project includes comprehensive tools for code analysis, structure verificati
 ./scripts/project-analysis/analyze.sh similar 'function.*export' '*.js'
 ```
 
-#### 3. Package Structure Analysis
+#### 3. Java Package Analysis
+
 ```bash
 # Analyze Java package organization
 ./scripts/project-analysis/analyze.sh packages
@@ -105,6 +108,7 @@ The project includes comprehensive tools for code analysis, structure verificati
 ```
 
 #### 4. File Location Suggestions
+
 ```bash
 # Get suggestions for new files
 ./scripts/project-analysis/analyze.sh suggest filename.ext
@@ -115,6 +119,7 @@ The project includes comprehensive tools for code analysis, structure verificati
 ```
 
 #### 5. Duplicate Detection
+
 ```bash
 # Check for potential duplicates
 ./scripts/project-analysis/analyze.sh check filename.ext ['pattern']
@@ -124,9 +129,10 @@ The project includes comprehensive tools for code analysis, structure verificati
 ./scripts/project-analysis/analyze.sh check UserService.java 'class.*Service'
 ```
 
-### Best Practices
+### Configuration Best Practices
 
 1. **Before Adding New Code**:
+
    ```bash
    # Check existing structure
    ./scripts/project-analysis/analyze.sh structure
@@ -139,6 +145,7 @@ The project includes comprehensive tools for code analysis, structure verificati
    ```
 
 2. **During Code Review**:
+
    ```bash
    # Find similar patterns
    ./scripts/project-analysis/analyze.sh similar 'pattern' '*.ext'
@@ -148,6 +155,7 @@ The project includes comprehensive tools for code analysis, structure verificati
    ```
 
 3. **Project Maintenance**:
+
    ```bash
    # Verify structure
    ./scripts/project-analysis/analyze.sh structure
@@ -164,31 +172,135 @@ mvn clean install
 
 ### Running Tests
 
+#### Running All Tests
+
+Run the entire test suite:
+
 ```bash
 mvn test
 ```
 
+#### Running Specific Tests
+
+Run all tests in a specific class:
+
+```bash
+mvn test -Dtest=com.example.shelldemo.UnifiedDatabaseRunnerTest -DforkCount=0
+```
+
+Run a specific test method in `UnifiedDatabaseRunnerTest`:
+
+```bash
+# Test connection to HR schema
+mvn test -Dtest=com.example.shelldemo.UnifiedDatabaseRunnerTest#testHRSchemaConnection -DforkCount=0
+
+# Test query with real data
+mvn test -Dtest=com.example.shelldemo.UnifiedDatabaseRunnerTest#testQueryWithRealData -DforkCount=0
+
+# Test execute SQL script file
+mvn test -Dtest=com.example.shelldemo.UnifiedDatabaseRunnerTest#testExecuteScriptFile -DforkCount=0
+
+# Test SQL DDL script
+mvn test -Dtest=com.example.shelldemo.UnifiedDatabaseRunnerTest#testSqlDdlScript -DforkCount=0
+
+# Test Oracle Function Creation
+mvn test -Dtest=com.example.shelldemo.UnifiedDatabaseRunnerTest#testOracleFunctionCreation -DforkCount=0
+
+# Test example (generic validation)
+mvn test -Dtest=com.example.shelldemo.UnifiedDatabaseRunnerTest#testExample -DforkCount=0
+```
+
+Run all tests in another class (example):
+
+```bash
+mvn test -Dtest=SqlScriptParserTest -DforkCount=0
+```
+
+Run a specific test method in another class (example):
+
+```bash
+mvn test -Dtest=SqlScriptParserTest#testParseMixedSqlAndPlsql -DforkCount=0
+```
+
+Run multiple test classes:
+
+```bash
+mvn test -Dtest=SqlScriptParserTest,DatabaseConfigTest -DforkCount=0
+```
+
+Run tests matching a pattern:
+
+```bash
+mvn test -Dtest=*Parser*Test -DforkCount=0
+```
+
+#### Important Notes on Test Execution
+
+- The `-DforkCount=0` parameter is required due to JVM argument handling in the current configuration
+- Omitting this parameter may result in "The forked VM terminated without properly saying goodbye" errors
+- For detailed test output, add the `-Dsurefire.useFile=false` parameter
+
+#### Test Output
+
+View test results in the following locations:
+- Console output during test execution
+- Surefire reports: `app/target/surefire-reports/`
+- Test logs: `app/logs/test/` (if configured)
+
+#### Debugging Tests
+
+To debug tests, use:
+
+```bash
+mvn test -Dtest=SqlScriptParserTest -DforkCount=0 -Dmaven.surefire.debug
+```
+
+This will pause execution and wait for a debugger to connect on port 5005.
+
+#### Troubleshooting Common Test Issues
+
+1. **"The forked VM terminated without properly saying goodbye" error**:
+   - Use `-DforkCount=0` as shown in the examples above
+   - This forces Maven to run tests in the same JVM, avoiding argument handling issues
+
+2. **"useSystemClassloader setting has no effect when not forking" warning**:
+   - This warning appears when using `-DforkCount=0`
+   - It's harmless and can be safely ignored
+   - It simply indicates that the system classloader setting doesn't apply when tests run in the same JVM
+
+3. **"Async contains an invalid element or attribute DiscardingThreshold" warning**:
+   - This is caused by an invalid Log4j2 configuration
+   - The `DiscardingThreshold` element has been removed from the configuration
+   - No action is required as this has been fixed
+
+4. **Database connection errors**:
+   - Ensure the Oracle database is running and accessible
+   - Verify the connection parameters in the test class match your environment
+   - Check that the HR schema is properly set up
+
 ## Documentation
 
 For detailed documentation about the project's memory bank and development practices, see:
+
 - [Memory Bank Documentation](memory-bank/README.md)
 - [Technical Context](memory-bank/core/techContext.mdc)
 - [System Patterns](memory-bank/core/systemPatterns.mdc)
 - [Project Scripts](memory-bank/core/scripts.mdc)
 
-# Database Utility Tool
-
 ## Database Configuration
 
 ### Oracle Database Password
+
 When running the application in a dev container, the database password for the application user is automatically generated for security. To retrieve the current password, you can use either of these methods:
 
 1. Using the provided script:
+
    ```bash
    ./.devcontainer/get-db-password.sh
    ```
 
 2. Direct file access:
+
    ```bash
    cat /run/secrets/app_user_password
    ```
@@ -216,6 +328,7 @@ Note: These passwords persist as long as the Oracle data volume exists. They wil
 ## Configuration System
 
 ### Overview
+
 The application uses a custom configuration system built around `ConfigurationHolder` and `YamlConfigReader`:
 
 - `ConfigurationHolder`: Singleton that loads and caches configuration at startup
@@ -224,12 +337,15 @@ The application uses a custom configuration system built around `ConfigurationHo
 - Runtime properties managed through `DatabaseProperties`
 
 ### Environment Variables
+
 Environment variables are handled through:
+
 1. `.env` file in `.devcontainer` directory
 2. Variables loaded into environment when container starts
 3. Accessed through `System.getenv()`
 
 ### Configuration Hierarchy
+
 (highest to lowest priority)
 
 1. Environment Variables
@@ -262,6 +378,7 @@ Environment variables are handled through:
    - `log4j2.xml`: Logging configuration
 
 ### Implementation Details
+
 1. Configuration Loading
    - YAML files parsed using Jackson
    - Environment variables loaded at container startup
@@ -277,7 +394,7 @@ Environment variables are handled through:
    - Passwords and keys masked in logs
    - Secure default values
 
-### Best Practices
+### Best Practices for Data Handling
 
 1. Sensitive Data
    - Store in environment variables
@@ -301,6 +418,7 @@ Environment variables are handled through:
    - Fail-fast validation
 
 ### Usage Example
+
 ```java
 // Access configuration through ConfigurationHolder
 DatabaseConfig config = ConfigurationHolder.getInstance().getDatabaseConfig();
@@ -314,12 +432,15 @@ String dbPassword = System.getenv("DB_PASSWORD");
 
 ## Logging Configuration
 
-### Overview
+### Logging Overview
+
 The application uses Log4j2 for logging with two main components:
+
 1. Regular application logging (`logger`)
 2. Method-specific detailed logging (`methodLogger`)
 
 ### Log Levels
+
 - **TRACE**: Detailed operation information (SQL queries, parameter values)
 - **DEBUG**: Operation lifecycle events (method entry/exit, state changes)
 - **INFO**: Important state changes and operation results
@@ -328,6 +449,7 @@ The application uses Log4j2 for logging with two main components:
 ### Configuration
 
 #### Method-Specific Debug Logging
+
 To enable detailed method-level logging, add the following to your `log4j2.xml`:
 
 ```xml
@@ -345,6 +467,7 @@ To enable detailed method-level logging, add the following to your `log4j2.xml`:
 ```
 
 #### Log File Configuration
+
 ```xml
 <!-- Regular log file -->
 <RollingRandomAccessFile name="File"
@@ -376,6 +499,7 @@ To enable detailed method-level logging, add the following to your `log4j2.xml`:
 ### Available Debug Information
 
 #### Database Operations
+
 - Script execution progress
 - SQL statement details
 - Statement execution status
@@ -383,12 +507,14 @@ To enable detailed method-level logging, add the following to your `log4j2.xml`:
 - Execution times
 
 #### Stored Procedures
+
 - Parameter parsing details
 - Execution progress
 - Return values
 - Error context
 
-#### Configuration
+#### Database configuration details
+
 - Database connection details
 - Configuration validation
 - Driver loading status
@@ -396,13 +522,15 @@ To enable detailed method-level logging, add the following to your `log4j2.xml`:
 ### Example Log Output
 
 Regular application log:
-```
+
+```bash
 2024-03-15 10:30:45 [main] INFO  UnifiedDatabaseRunner - Executing SQL script: /path/to/script.sql
 2024-03-15 10:30:46 [main] INFO  UnifiedDatabaseRunner - Script execution completed successfully - 5 statements executed
 ```
 
 Method-specific debug log:
-```
+
+```bash
 2024-03-15 10:30:45 [main] DEBUG [executeScript] Starting execution of script: script.sql
 2024-03-15 10:30:45 [main] DEBUG [executeScript] Parsed 5 SQL statements from file
 2024-03-15 10:30:45 [main] DEBUG [executeScript] Processing statement 1/5
@@ -424,17 +552,19 @@ Method-specific debug log:
    - Check `logs/method-debug.log` for detailed execution flow
 
 ### Performance Considerations
+
 - Method-specific logging at `TRACE` level may impact performance
 - Use `DEBUG` level for general troubleshooting
 - In production, keep method-specific logging at `ERROR` or disabled
 
 ### Log File Locations
+
 - Regular logs: `logs/application.log`
 - Method debug logs: `logs/method-debug.log`
 - Rolling policy: Daily rotation with compression
 - Retention: 30 days for regular logs, 7 days for debug logs
 
-# Maven Version Management Commands
+## Maven Version Management Commands
 
 ```bash
 # Display all dependency updates
@@ -484,6 +614,7 @@ mvn versions:unlock-snapshots
 ```
 
 Tips for version management:
+
 - Always review changes before committing
 - Use `display-*` commands to preview updates
 - Backup `pom.xml` before making major version changes
@@ -494,6 +625,7 @@ Tips for version management:
 ### Maven Shade Plugin Configuration
 
 #### Log4j2 Plugin Transformer
+
 To properly merge Log4j2 resources and prevent resource overlap warnings during the build, the following configuration is added to the Maven Shade Plugin:
 
 ```xml
@@ -513,6 +645,7 @@ This transformer requires an additional dependency in the plugin configuration:
 ```
 
 This configuration:
+
 - Properly merges Log4j2 plugin cache files
 - Eliminates resource overlap warnings
 - Ensures correct loading of Log4j2 plugins in the shaded JAR
@@ -520,10 +653,11 @@ This configuration:
 
 After adding this configuration, the warning about overlapping Log4j2 resources during the Maven build process will be resolved.
 
+```bash
 docker exec <container_name> cat /run/secrets/app_user_password
 
 git config --global user.name "swapan chakrabarty" &&\
-git config --global user.email "swapan.chakrabarty@datahawklab.com"
+git config --global user.email "<swapan.chakrabarty@datahawklab.com>"
 
 git config --global init.defaultBranch main
 git config --global pull.rebase false
@@ -532,14 +666,15 @@ git config --global core.longpaths true
 git config --global core.symlinks true
 ```
 
-# Project Documentation
+## Project Documentation
 
-## Analysis & Testing Tools
+### Analysis & Testing Tools
 
-### 1. Project Structure Analysis
+#### 1. Project Structure Analysis
+
 ```bash
 # Show complete project structure
-./scripts/project-analysis/analyze.sh structure
+./scripts/analysis/code-analysis/analyze_structure.sh
 
 # Shows:
 - Directory hierarchy
@@ -548,7 +683,8 @@ git config --global core.symlinks true
 - Memory bank structure
 ```
 
-### 2. Code Pattern Analysis
+#### 2. Analysis Pattern Tools
+
 ```bash
 # Find similar code patterns
 ./scripts/project-analysis/analyze.sh similar 'pattern' ['*.ext']
@@ -558,7 +694,8 @@ git config --global core.symlinks true
 ./scripts/project-analysis/analyze.sh similar 'function.*export' '*.js'
 ```
 
-### 3. Package Structure Analysis
+#### 3. Java Package Analysis
+
 ```bash
 # Analyze Java package organization
 ./scripts/project-analysis/analyze.sh packages
@@ -569,7 +706,8 @@ git config --global core.symlinks true
 - Dependencies between packages
 ```
 
-### 4. File Location Suggestions
+#### 4. File Location Suggestions
+
 ```bash
 # Get suggestions for new files
 ./scripts/project-analysis/analyze.sh suggest filename.ext
@@ -579,7 +717,8 @@ git config --global core.symlinks true
 ./scripts/project-analysis/analyze.sh suggest config.yaml
 ```
 
-### 5. Duplicate Detection
+#### 5. Duplicate Detection
+
 ```bash
 # Check for potential duplicates
 ./scripts/project-analysis/analyze.sh check filename.ext ['pattern']
@@ -592,6 +731,7 @@ git config --global core.symlinks true
 ## Best Practices
 
 ### 1. Before Adding New Code
+
 ```bash
 # Check existing structure
 ./scripts/project-analysis/analyze.sh structure
@@ -604,6 +744,7 @@ git config --global core.symlinks true
 ```
 
 ### 2. During Code Review
+
 ```bash
 # Find similar patterns
 ./scripts/project-analysis/analyze.sh similar 'pattern' '*.ext'
@@ -613,6 +754,7 @@ git config --global core.symlinks true
 ```
 
 ### 3. Project Maintenance
+
 ```bash
 # Verify structure
 ./scripts/project-analysis/analyze.sh structure
@@ -624,7 +766,8 @@ git config --global core.symlinks true
 ## Command Output Examples
 
 ### Structure Analysis
-```
+
+```bash
 Project Structure:
 └── src/
     ├── main/
@@ -645,7 +788,8 @@ File counts:
 ```
 
 ### Pattern Analysis
-```
+
+```bash
 Similar patterns found:
 1. UserService.java:120 - "implements UserRepository"
 2. ProductService.java:85 - "implements ProductRepository"
@@ -653,7 +797,8 @@ Similar patterns found:
 ```
 
 ### Package Analysis
-```
+
+```bash
 Package hierarchy:
 com.example
 ├── controllers
@@ -668,7 +813,8 @@ com.example
 ```
 
 ### File Suggestions
-```
+
+```bash
 Suggested locations for UserService.java:
 1. src/main/java/com/example/services/
 2. src/main/java/com/example/core/services/
@@ -676,6 +822,7 @@ Suggested locations for UserService.java:
 ```
 
 ### Duplicate Check
+
 ```
 Potential duplicates found:
 1. UserService.java ~ UserServiceImpl.java (80% similar)
@@ -702,6 +849,7 @@ Potential duplicates found:
 ## Testing Dependencies
 
 ### Core Testing Libraries
+
 The parent POM includes these essential testing dependencies:
 
 - **JUnit Jupiter (junit-jupiter)** - The main testing framework
@@ -709,30 +857,36 @@ The parent POM includes these essential testing dependencies:
 - **Mockito JUnit Jupiter (mockito-junit-jupiter)** - Integration between Mockito and JUnit
 
 ### Additional Testing Libraries
+
 For more comprehensive testing capabilities, we've added:
 
 - **AssertJ** - Provides fluent assertions that are more readable and IDE-friendly
+
   ```java
   assertThat(result).isEqualTo(expected)
   ```
 
 - **Hamcrest** - Offers powerful matchers for complex assertions
+
   ```java
   assertThat(result, hasProperty("name", equalTo("test")))
   ```
 
 - **JUnit Pioneer** - Adds useful extensions for JUnit Jupiter like temporary directory improvements and system property handling
+
   ```java
   @TempDir
   Path tempDir;
   ```
 
 - **JsonAssert** - Specifically for testing JSON structures (useful since we're using Jackson)
+
   ```java
   JSONAssert.assertEquals(expectedJson, actualJson, false)
   ```
 
 ### Dependency Management
+
 - All testing dependencies are defined in the parent POM for version consistency
 - Dependencies are added with `<scope>test</scope>` in module POMs
 - Test dependencies are only available during testing, not in the production classpath
@@ -740,7 +894,9 @@ For more comprehensive testing capabilities, we've added:
 ## Reporting Setup and Implementation
 
 ### Overview
+
 The application includes a comprehensive reporting system that provides:
+
 1. Command output reporting
 2. Test execution reporting
 3. Database operation reporting
@@ -749,14 +905,18 @@ The application includes a comprehensive reporting system that provides:
 ### Command Output Reporting
 
 #### Output Formats
+
 - **Standard Output**: Regular command execution results
 - **CSV Format**: Structured data output for database queries
+
   ```bash
   --csv-output "results.csv"
   ```
+
 - **Detailed Logging**: Method-level execution details
 
 #### Database Operation Reports
+
 ```java
 DatabaseLoginServiceTestResult {
     - Database name
@@ -772,19 +932,22 @@ DatabaseLoginServiceTestResult {
 ### Test Execution Reports
 
 #### Test Output Structure
+
 1. **Test Start**:
-   ```
-   ========================================
-   Test * testName
-   ========================================
-   ```
+
+```bash
+========================================
+Test * testName
+========================================
+```
 
 2. **Test Completion**:
-   ```
-   ========================================
-   Test * testName * SUCCESS ✓
-   ========================================
-   ```
+
+```bash
+========================================
+Test * testName * SUCCESS ✓
+========================================
+```
 
 3. **Failure Handling**:
    - SQL files preserved on test failure
@@ -792,6 +955,7 @@ DatabaseLoginServiceTestResult {
    - Detailed error context
 
 #### Test Report Location
+
 - Failed SQL tests: `failed_sql_tests/`
 - Test logs: `logs/test/`
 - Surefire reports: `target/surefire-reports/`
@@ -799,29 +963,38 @@ DatabaseLoginServiceTestResult {
 ### Analysis Reports
 
 #### Structure Analysis
+
 ```bash
 ./scripts/project-analysis/analyze.sh structure
 ```
+
 Generates:
+
 - Directory hierarchy
 - File statistics
 - Package organization
 - Memory bank structure
 
 #### Pattern Analysis
+
 ```bash
 ./scripts/project-analysis/analyze.sh similar 'pattern' '*.ext'
 ```
+
 Reports:
+
 - Common code patterns
 - Similar implementations
 - Potential duplicates
 
 #### Dependency Analysis
+
 ```bash
 ./scripts/project-analysis/analyze.sh dependencies
 ```
+
 Provides:
+
 - Maven dependency tree
 - Version conflicts
 - Unused dependencies
@@ -829,19 +1002,25 @@ Provides:
 ### Report Validation
 
 #### Output Validation
+
 ```bash
 ./scripts/analysis/validation/validate_output.sh
 ```
+
 Checks:
+
 - Command output format
 - Expected patterns
 - Error conditions
 
 #### Directory Validation
+
 ```bash
 ./scripts/analysis/validation/validate_output.sh --directory
 ```
+
 Verifies:
+
 - Required files
 - File permissions
 - Directory structure
@@ -869,12 +1048,14 @@ Verifies:
    - Validate output paths
 
 ### Report File Locations
+
 - Analysis reports: `logs/analysis/`
 - Validation reports: `logs/validation/`
 - Test reports: `logs/test/`
 - Command output: `logs/output/`
 
 ### Report Retention
+
 - Analysis reports: 30 days
 - Test reports: 7 days
 - Failed test artifacts: 30 days
@@ -882,6 +1063,7 @@ Verifies:
 
 Dynamic JDBC Driver Loading Flow
 -------------------------------
+
 ```
 ConfigurationHolder (Global Configuration)
     ↓
@@ -902,6 +1084,7 @@ UnifiedDatabaseRunner (CLI/Entry point)
 ```
 
 Code Flow:
+
 1. CLI Input:
 
 ```java
@@ -937,6 +1120,7 @@ Code Flow:
 ```
 
 4. Driver Wrapping:
+
 ```java
    public class CustomDriver implements Driver {
        private final Driver delegate;
@@ -964,13 +1148,12 @@ Code Flow:
    }
 ```
 
-
 ::: mermaid
 graph TD;
     A[UnifiedDatabaseRunner<br/>CLI/Entry point] -->|executes| B[UnifiedDatabaseOperation<br/>SQL/SP/Function Executor]
     CH[ConfigurationHolder] -.->|used by| A
     CH -.->|used by| B
-    
+
     B --> C[DatabaseConnectionFactory<br/>Connection Management]
     CH -.->|used by| C
     
@@ -1006,7 +1189,7 @@ graph TD
     subgraph Global
         CH[ConfigurationHolder<br/>Global Configuration]
     end
-    
+
     subgraph CLI
         A[UnifiedDatabaseRunner<br/>CLI/Entry point]
     end
@@ -1029,9 +1212,9 @@ graph TD
     B -->|uses| C
 :::
 
-
 based on this
 
+```java
 public class SqlScriptExecutor {
     private static final Logger logger = LogManager.getLogger(SqlScriptExecutor.class);
 
@@ -1201,20 +1384,20 @@ public class SqlScriptExecutor {
 
 try (Connection conn = dataSource.getConnection()) {
     SqlScriptExecutor executor = new SqlScriptExecutor();
-    
+
     // Optional: Validate before execution
     executor.validateScript(conn, "path/to/script.sql");
     
     // Execute with transaction support
     executor.executeScriptWithTransaction(conn, "path/to/script.sql");
 }
+```
 
-
-
+```bash
 ConfigurationHolder (Global Configuration Singleton)
     │
     └─> YamlConfigReader
-    
+
 UnifiedDatabaseRunner (CLI/Entry point)
     │
     ├─> UnifiedDatabaseOperation (executes sql, sql scripts, procedures, functions)
@@ -1244,171 +1427,5 @@ UnifiedDatabaseRunner (CLI/Entry point)
                        ├─> DatabaseOperationException
                        ├─> ParserException
                        └─> ConfigurationException
-
-
-
-integer  | String
----------|----------
- 1 | BEGIN
-        EXECUTE IMMEDIATE 'DROP FUNCTION hr.get_employee_info';
-        EXCEPTION
-        WHEN OTHERS THEN
-            IF SQLCODE != -4043 THEN  -- -4043 is "does not exist"
-                RAISE;
-            END IF;
-        END;
-     /  
- 2 | CREATE OR REPLACE FUNCTION hr.get_employee_info(p_emp_id IN NUMBER) 
-     RETURN VARCHAR2 AS
-        BEGIN
-            RETURN (SELECT first_name || ' ' || last_name 
-                    FROM hr.employees 
-                    WHERE employee_id = p_emp_id);
-        EXCEPTION
-            WHEN NO_DATA_FOUND THEN
-                RETURN NULL;
-            WHEN OTHERS THEN
-                RAISE;
-        END;
-     /
-
- 3 | GRANT EXECUTE ON 
-     hr.get_employee_info TO PUBLIC;
-
-
-
-```java
- private static String stripComments(String line) {
-        StringBuilder result = new StringBuilder();
-        String[] lines = line.split("\\R"); // Split by any line break
-    
-        boolean inMultiLineComment = false;
-    
-        for (String singleLine : lines) {
-            String trimmed = singleLine.trim();
-    
-            // Skip empty lines
-            if (trimmed.isEmpty()) {
-                continue;
-            }
-    
-            // Stop when we reach a single slash "/"
-            if (trimmed.equals("/")) {
-                break;
-            }
-    
-            // Skip full-line comments or continue skipping in a multi-line comment
-            if (trimmed.startsWith("--") || inMultiLineComment) {
-                // Check if this line contains the end of a multi-line comment
-                if (inMultiLineComment && trimmed.contains("*/")) {
-                    inMultiLineComment = false;
-                    // Get content after the end of the comment
-                    String afterComment = trimmed.substring(trimmed.indexOf("*/") + 2).trim();
-                    if (!afterComment.isEmpty() && !afterComment.startsWith("--")) {
-                        result.append(afterComment).append(System.lineSeparator());
-                    }
-                }
-                continue;
-            }
-    
-            // Check if this line starts a multi-line comment
-            if (trimmed.startsWith("/*")) {
-                inMultiLineComment = true;
-                // Check if the multi-line comment ends on the same line
-                if (trimmed.contains("*/")) {
-                    inMultiLineComment = false;
-                    // Get content after the end of the comment
-                    String afterComment = trimmed.substring(trimmed.indexOf("*/") + 2).trim();
-                    if (!afterComment.isEmpty() && !afterComment.startsWith("--")) {
-                        result.append(afterComment).append(System.lineSeparator());
-                    }
-                }
-                continue;
-            }
-    
-            // Process lines that might contain inline comments
-            if (trimmed.contains("--") || trimmed.contains("/*")) {
-                result.append(removeInlineComments(singleLine)).append(System.lineSeparator());
-            } else {
-                // Append the line to the result if it's not a comment
-                result.append(singleLine).append(System.lineSeparator());
-            }
-        }
-    
-        return result.toString().trim(); // Return the result without leading/trailing whitespace
-    }
-
-    private static boolean isPLSQLStatement(String line) {
-        return PLSQL_START.matcher(line).find();
-    }
-
-    private static void validateFile(File scriptFile) {
-        if (scriptFile == null) {
-            throw new IllegalArgumentException("Script file cannot be null");
-        }
-        if (!scriptFile.exists()) {
-            throw new IllegalArgumentException("Script file does not exist: " + scriptFile.getPath());
-        }
-        if (!scriptFile.isFile()) {
-            throw new IllegalArgumentException("Path is not a file: " + scriptFile.getPath());
-        }
-    }
-
-    private static String removeInlineComments(String line) {
-        StringBuilder result = new StringBuilder();
-        boolean inSingleQuote = false;
-        boolean inDoubleQuote = false;
-        boolean inSingleLineComment = false;
-        boolean inMultiLineComment = false;
-        
-        for (int i = 0; i < line.length(); i++) {
-            char c = line.charAt(i);
-            char next = (i < line.length() - 1) ? line.charAt(i + 1) : '\0';
-            
-            // Handle string literals
-            if (c == '\'' && !inDoubleQuote && !inSingleLineComment && !inMultiLineComment) {
-                inSingleQuote = !inSingleQuote;
-                result.append(c);
-                continue;
-            }
-            
-            if (c == '"' && !inSingleQuote && !inSingleLineComment && !inMultiLineComment) {
-                inDoubleQuote = !inDoubleQuote;
-                result.append(c);
-                continue;
-            }
-            
-            // Handle comments, but only if not inside a string literal
-            if (!inSingleQuote && !inDoubleQuote) {
-                // Check for start of single line comment
-                if (c == '-' && next == '-' && !inSingleLineComment && !inMultiLineComment) {
-                    inSingleLineComment = true;
-                    i++; // Skip next hyphen
-                    continue;
-                }
-                
-                // Check for start of multi-line comment
-                if (c == '/' && next == '*' && !inSingleLineComment && !inMultiLineComment) {
-                    inMultiLineComment = true;
-                    i++; // Skip next character
-                    continue;
-                }
-                
-                // Check for end of multi-line comment
-                if (c == '*' && next == '/' && inMultiLineComment) {
-                    inMultiLineComment = false;
-                    i++; // Skip next character
-                    continue;
-                }
-            }
-            
-            // Only append if not in a comment
-            if (!inSingleLineComment && !inMultiLineComment) {
-                result.append(c);
-            }
-        }
-        
-        return result.toString();
-    }
 
 ```

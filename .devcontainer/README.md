@@ -19,6 +19,7 @@ A ready-to-use development container configuration for Java 21 and Oracle XE pro
 ## Configuration
 
 ### Database Credentials
+
 - System Password: `Oracle123`
 - HR User: `HR`
 - HR Password: `HR`
@@ -26,12 +27,14 @@ A ready-to-use development container configuration for Java 21 and Oracle XE pro
 - Port: `1521`
 
 ### Java/Maven Settings
+
 - Java Home: `/usr/java/openjdk-21`
 - Maven Path: `/usr/share/maven/bin/mvn`
 
 ## Customization
 
 Modify these files as needed:
+
 - `devcontainer.json`: VS Code settings and extensions
 - `docker-compose.yml`: Container configuration
-- `init-scripts/`: Database initialization scripts 
+- `init-scripts/`: Database initialization scripts
