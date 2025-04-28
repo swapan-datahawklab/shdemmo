@@ -75,6 +75,12 @@
             <AppenderRef ref="ErrorFile"/>
         </Logger>
 
+        <Logger name="com.example.shelldemo.parser.SqlScriptParser" level="DEBUG" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="AsyncFile"/>
+            <AppenderRef ref="ErrorFile"/>
+        </Logger>
+
         <!-- Application Loggers -->
         <Logger name="com.example.shelldemo" level="ERROR" additivity="false">
             <AppenderRef ref="Console"/>

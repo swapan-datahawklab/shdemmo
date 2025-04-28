@@ -25,4 +25,5 @@ END;
 /
 
 -- Grant execute permission to public
-GRANT EXECUTE ON hr.get_employee_info TO PUBLIC;
+GRANT EXECUTE ON 
+hr.get_employee_info TO PUBLIC;

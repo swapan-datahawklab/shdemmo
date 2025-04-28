@@ -1244,3 +1244,171 @@ UnifiedDatabaseRunner (CLI/Entry point)
                        ├─> DatabaseOperationException
                        ├─> ParserException
                        └─> ConfigurationException
+
+
+
+integer  | String
+---------|----------
+ 1 | BEGIN
+        EXECUTE IMMEDIATE 'DROP FUNCTION hr.get_employee_info';
+        EXCEPTION
+        WHEN OTHERS THEN
+            IF SQLCODE != -4043 THEN  -- -4043 is "does not exist"
+                RAISE;
+            END IF;
+        END;
+     /  
+ 2 | CREATE OR REPLACE FUNCTION hr.get_employee_info(p_emp_id IN NUMBER) 
+     RETURN VARCHAR2 AS
+        BEGIN
+            RETURN (SELECT first_name || ' ' || last_name 
+                    FROM hr.employees 
+                    WHERE employee_id = p_emp_id);
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                RETURN NULL;
+            WHEN OTHERS THEN
+                RAISE;
+        END;
+     /
+
+ 3 | GRANT EXECUTE ON 
+     hr.get_employee_info TO PUBLIC;
+
+
+
+```java
+ private static String stripComments(String line) {
+        StringBuilder result = new StringBuilder();
+        String[] lines = line.split("\\R"); // Split by any line break
+    
+        boolean inMultiLineComment = false;
+    
+        for (String singleLine : lines) {
+            String trimmed = singleLine.trim();
+    
+            // Skip empty lines
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+    
+            // Stop when we reach a single slash "/"
+            if (trimmed.equals("/")) {
+                break;
+            }
+    
+            // Skip full-line comments or continue skipping in a multi-line comment
+            if (trimmed.startsWith("--") || inMultiLineComment) {
+                // Check if this line contains the end of a multi-line comment
+                if (inMultiLineComment && trimmed.contains("*/")) {
+                    inMultiLineComment = false;
+                    // Get content after the end of the comment
+                    String afterComment = trimmed.substring(trimmed.indexOf("*/") + 2).trim();
+                    if (!afterComment.isEmpty() && !afterComment.startsWith("--")) {
+                        result.append(afterComment).append(System.lineSeparator());
+                    }
+                }
+                continue;
+            }
+    
+            // Check if this line starts a multi-line comment
+            if (trimmed.startsWith("/*")) {
+                inMultiLineComment = true;
+                // Check if the multi-line comment ends on the same line
+                if (trimmed.contains("*/")) {
+                    inMultiLineComment = false;
+                    // Get content after the end of the comment
+                    String afterComment = trimmed.substring(trimmed.indexOf("*/") + 2).trim();
+                    if (!afterComment.isEmpty() && !afterComment.startsWith("--")) {
+                        result.append(afterComment).append(System.lineSeparator());
+                    }
+                }
+                continue;
+            }
+    
+            // Process lines that might contain inline comments
+            if (trimmed.contains("--") || trimmed.contains("/*")) {
+                result.append(removeInlineComments(singleLine)).append(System.lineSeparator());
+            } else {
+                // Append the line to the result if it's not a comment
+                result.append(singleLine).append(System.lineSeparator());
+            }
+        }
+    
+        return result.toString().trim(); // Return the result without leading/trailing whitespace
+    }
+
+    private static boolean isPLSQLStatement(String line) {
+        return PLSQL_START.matcher(line).find();
+    }
+
+    private static void validateFile(File scriptFile) {
+        if (scriptFile == null) {
+            throw new IllegalArgumentException("Script file cannot be null");
+        }
+        if (!scriptFile.exists()) {
+            throw new IllegalArgumentException("Script file does not exist: " + scriptFile.getPath());
+        }
+        if (!scriptFile.isFile()) {
+            throw new IllegalArgumentException("Path is not a file: " + scriptFile.getPath());
+        }
+    }
+
+    private static String removeInlineComments(String line) {
+        StringBuilder result = new StringBuilder();
+        boolean inSingleQuote = false;
+        boolean inDoubleQuote = false;
+        boolean inSingleLineComment = false;
+        boolean inMultiLineComment = false;
+        
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            char next = (i < line.length() - 1) ? line.charAt(i + 1) : '\0';
+            
+            // Handle string literals
+            if (c == '\'' && !inDoubleQuote && !inSingleLineComment && !inMultiLineComment) {
+                inSingleQuote = !inSingleQuote;
+                result.append(c);
+                continue;
+            }
+            
+            if (c == '"' && !inSingleQuote && !inSingleLineComment && !inMultiLineComment) {
+                inDoubleQuote = !inDoubleQuote;
+                result.append(c);
+                continue;
+            }
+            
+            // Handle comments, but only if not inside a string literal
+            if (!inSingleQuote && !inDoubleQuote) {
+                // Check for start of single line comment
+                if (c == '-' && next == '-' && !inSingleLineComment && !inMultiLineComment) {
+                    inSingleLineComment = true;
+                    i++; // Skip next hyphen
+                    continue;
+                }
+                
+                // Check for start of multi-line comment
+                if (c == '/' && next == '*' && !inSingleLineComment && !inMultiLineComment) {
+                    inMultiLineComment = true;
+                    i++; // Skip next character
+                    continue;
+                }
+                
+                // Check for end of multi-line comment
+                if (c == '*' && next == '/' && inMultiLineComment) {
+                    inMultiLineComment = false;
+                    i++; // Skip next character
+                    continue;
+                }
+            }
+            
+            // Only append if not in a comment
+            if (!inSingleLineComment && !inMultiLineComment) {
+                result.append(c);
+            }
+        }
+        
+        return result.toString();
+    }
+
+```
