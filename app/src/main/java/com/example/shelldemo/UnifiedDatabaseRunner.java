@@ -27,7 +27,7 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
     @Option(names = {"--connection-type"}, description = "Connection type for Oracle (thin, ldap). Defaults to ldap if not specified.")
     private String connectionType;
 
-    @Option(names = {"-H", "--host"}, required = true, description = "Database host")
+    @Option(names = {"-H", "--host"}, description = "Database host")
     private String host;
 
     @Option(names = {"-P", "--port"}, description = "Database port (defaults: oracle=1521, sqlserver=1433, postgresql=5432, mysql=3306)")
@@ -36,7 +36,7 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
     @Option(names = {"-u", "--username"}, required = true, description = "Database username")
     private String username;
 
-    @Option(names = {"-p", "--password"}, required = true, description = "Database password")
+    @Option(names = {"-p", "--password"}, description = "Database password")
     private String password;
 
     @Option(names = {"-d", "--database"}, required = true, description = "Database name")
@@ -51,8 +51,7 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
     @Option(names = {"--print-statements"}, defaultValue = "false",description = "Print SQL statements")
     private boolean printStatements;
 
-    @Parameters(index = "0", paramLabel = "TARGET",
-            description = "SQL script file or stored procedure name")
+    @Parameters(index = "0", paramLabel = "TARGET", description = "SQL script file or stored procedure name", arity = "0..1")
     private String target;
 
     @Option(names = {"--function"}, description = "Execute as function")
@@ -85,10 +84,17 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
     @Option(names = {"--transactional"}, defaultValue = "false", description = "Execute DML statements in a transaction (default: false)")
     private boolean transactional;
 
+    @Option(names = {"--show-connect-string"}, description = "Show the generated JDBC connection string and exit")
+    private boolean showConnectString;
+
     @Override
     public Integer call() throws Exception {
         logger.info("Starting database operation - type: {}, target: {}", dbType, target);
-        
+
+        if (showConnectString) {
+            return showConnectString();
+        }
+
         if (target == null || target.trim().isEmpty()) {
             logger.error("Target file or procedure name is required");
             return 2;
@@ -96,6 +102,10 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
 
         if (driverPath != null) {
             logger.info("Loading custom JDBC driver from: {}", driverPath);
+        }
+
+        if (password == null || password.trim().isEmpty()) {
+            password = promptForPassword();
         }
 
         try (UnifiedDatabaseOperation operation = UnifiedDatabaseOperation.builder()
@@ -108,36 +118,67 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
                 .connectionType(connectionType)
                 .build()
             ) {
-            
-                File scriptFile = new File(target);
+            File scriptFile = new File(target);
 
-                if (scriptFile.isDirectory()) {
-                    logger.error("Target '{}' is a directory, expected a file or procedure name", target);
+            if (scriptFile.isDirectory()) {
+                logger.error("Target '{}' is a directory, expected a file or procedure name", target);
+                return 2;
+            }
+
+            if (!scriptFile.exists()) {
+                if (target.contains("/") || target.contains("\\")) {
+                    logger.error("File not found: {}", target);
                     return 2;
                 }
-
-                if (!scriptFile.exists()) {
-                    if (target.contains("/") || target.contains("\\")) {
-                        logger.error("File not found: {}", target);
-                        return 2;
-                    }
-                    logger.debug("Executing as stored procedure: {}", target);
-                    operation.executeStoredProcedure(target, isFunction);
-                    return 0;
-                }
-
-                if (preFlight) {
-                    operation.getStatementExecutor().validateScript(scriptFile.getPath(), showExplainPlan);
-                    return 0;
-                }
-
-                logger.debug("Executing as script file: {}", scriptFile.getAbsolutePath());
-                operation.executeScript(scriptFile, transactional);
+                logger.debug("Executing as stored procedure: {}", target);
+                operation.executeStoredProcedure(target, isFunction);
                 return 0;
+            }
+
+            if (preFlight) {
+                operation.getStatementExecutor().validateScript(scriptFile.getPath(), showExplainPlan);
+                return 0;
+            }
+
+            logger.debug("Executing as script file: {}", scriptFile.getAbsolutePath());
+            operation.executeScript(scriptFile, transactional);
+            return 0;
         } catch (Exception e) {
             logger.error("Operation failed: {}", e.getMessage(), e);
             return 1;
         }
+    }
+
+    private int showConnectString() {
+        com.example.shelldemo.connection.ConnectionConfig connConfig = new com.example.shelldemo.connection.ConnectionConfig();
+        connConfig.setDbType(dbType);
+        connConfig.setHost(host);
+        connConfig.setPort(port);
+        connConfig.setUsername(username);
+        connConfig.setPassword(password);
+        connConfig.setServiceName(database);
+        connConfig.setConnectionType(connectionType);
+        String connectString = new com.example.shelldemo.connection.DatabaseConnectionFactory().buildConnectionUrl(connConfig);
+        logger.info(connectString);
+        if ("thin".equalsIgnoreCase(connectionType) && (host == null || host.trim().isEmpty())) {
+            logger.error("Host is required for connection type 'thin'");
+            return 2;
+        }
+        return 0;
+    }
+
+    private String promptForPassword() {
+        System.out.print("Enter database password: ");
+        java.io.Console console = System.console();
+        if (console != null) {
+            char[] pwd = console.readPassword();
+            if (pwd != null) return new String(pwd);
+        } else {
+            try (java.util.Scanner scanner = new java.util.Scanner(System.in)) {
+                return scanner.nextLine();
+            }
+        }
+        return "";
     }
 
     public static void main(String[] args) {

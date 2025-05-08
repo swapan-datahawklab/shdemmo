@@ -382,6 +382,18 @@ copy_log4j_config() {
     fi
 }
 
+copy_application_yaml() {
+    local src_yaml="$PROJECT_ROOT/app/src/main/resources/application.yaml"
+    local dest_dir="$BUNDLE_NAME/resources"
+    mkdir -p "$dest_dir"
+    if [ -f "$src_yaml" ]; then
+        cp "$src_yaml" "$dest_dir/"
+        log_info "Copied application.yaml to $dest_dir"
+    else
+        log_warn "application.yaml not found at $src_yaml, skipping copy."
+    fi
+}
+
 # Main execution flow
 main() {
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -395,6 +407,7 @@ main() {
     check_required_files
     create_bundle_structure "$BUNDLE_NAME"
     copy_log4j_config
+    copy_application_yaml
     copy_sample_sql_scripts
     copy_uber_jar_to_bundle
     copy_bundle_templates

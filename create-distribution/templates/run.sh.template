@@ -36,6 +36,7 @@ APP_JAR="$BUNDLE_DIR/app/dbscriptrunner-1.0-SNAPSHOT.jar"
 LOG_CONFIG="$BUNDLE_DIR/resources/log4j2.xml"
 DRIVERS_DIR="$BUNDLE_DIR/drivers"
 BUNDLED_JRE="$BUNDLE_DIR/runtime"
+APP_CONFIG="$BUNDLE_DIR/resources/application.yaml"
 
 # Use bundled JRE if it exists
 if [ -d "$BUNDLED_JRE" ]; then
@@ -62,7 +63,14 @@ for arg in "$@"; do
     fi
 done
 
-JAVA_OPTS="-Dlog4j.configurationFile=$LOG_CONFIG"
+# Prompt for password if not provided in args
+if ! echo "$@" | grep -q -- "-p" && ! echo "$@" | grep -q -- "--password"; then
+    read -s -p "Enter database password: " DB_PASSWORD
+    echo
+    set -- "$@" -p "$DB_PASSWORD"
+fi
+
+JAVA_OPTS="-Dlog4j.configurationFile=$LOG_CONFIG -Dapp.config=$APP_CONFIG"
 
 # If --driver-path is not present and a default exists, add it
 if [ "$DRIVER_PATH_PRESENT" = false ] && [ -n "$DEFAULT_DRIVER_JAR" ]; then

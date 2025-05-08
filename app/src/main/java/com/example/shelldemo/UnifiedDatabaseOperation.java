@@ -227,8 +227,7 @@ public class UnifiedDatabaseOperation implements AutoCloseable {
     }
 
     public void executeScript(File scriptFile, boolean transactional) {
-            Map<Integer, String> parsedScripts = parseScriptFile(scriptFile);
-        // Partition statements by type
+        Map<Integer, String> parsedScripts = parseScriptFile(scriptFile);
         List<String> dmlStatements = new ArrayList<>();
         List<String> otherStatements = new ArrayList<>();
         for (String sql : parsedScripts.values()) {
@@ -238,31 +237,36 @@ public class UnifiedDatabaseOperation implements AutoCloseable {
                 otherStatements.add(sql);
             }
         }
-        // Execute DDL/PLSQL (always non-transactional)
-        for (String sql : otherStatements) {
+        executeNonTransactionalStatements(otherStatements);
+        executeDmlStatements(dmlStatements, transactional);
+    }
+
+    private void executeNonTransactionalStatements(List<String> statements) {
+        for (String sql : statements) {
             logger.info("Executing non-transactional statement: {}", sql);
             executeSingleStatement(sql);
         }
-        // Execute DML
-        if (!dmlStatements.isEmpty()) {
-            if (transactional) {
-                logger.info("Executing DML statements in a transaction ({} statements)", dmlStatements.size());
-                try {
-            executeInTransaction(conn -> {
-                        for (String sql : dmlStatements) {
-                            executeSingleStatement(sql);
-                        }
-                return null;
-            });
-        } catch (SQLException e) {
-                    logger.error("Failed to execute DML statements in transaction", e);
-                    throw new DatabaseException("Failed to execute DML statements in transaction", e, ErrorType.OP_QUERY);
-                }
-            } else {
-                logger.info("Executing DML statements non-transactionally ({} statements)", dmlStatements.size());
-                for (String sql : dmlStatements) {
-                    executeSingleStatement(sql);
-                }
+    }
+
+    private void executeDmlStatements(List<String> dmlStatements, boolean transactional) {
+        if (dmlStatements.isEmpty()) return;
+        if (transactional) {
+            logger.info("Executing DML statements in a transaction ({})", dmlStatements.size());
+            try {
+                executeInTransaction(conn -> {
+                    for (String sql : dmlStatements) {
+                        executeSingleStatement(sql);
+                    }
+                    return null;
+                });
+            } catch (SQLException e) {
+                logger.error("Failed to execute DML statements in transaction", e);
+                throw new DatabaseException("Failed to execute DML statements in transaction", e, ErrorType.OP_QUERY);
+            }
+        } else {
+            logger.info("Executing DML statements non-transactionally ({})", dmlStatements.size());
+            for (String sql : dmlStatements) {
+                executeSingleStatement(sql);
             }
         }
     }

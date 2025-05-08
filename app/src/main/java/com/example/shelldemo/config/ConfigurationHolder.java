@@ -42,24 +42,36 @@ public class ConfigurationHolder {
     private Map<String, Object> loadConfig() {
         try {
             ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-            
-            // Try to load from classpath first
-            InputStream inputStream = getClass().getClassLoader().getResourceAsStream(CONFIG_PATH);
-            if (inputStream == null) {
-                inputStream = Thread.currentThread().getContextClassLoader().getResourceAsStream(CONFIG_PATH);
+            InputStream inputStream = null;
+            String configPath = System.getProperty("app.config");
+            if (configPath != null) {
+                inputStream = openConfigFile(configPath);
             }
-            
+            if (inputStream == null) {
+                inputStream = getClass().getClassLoader().getResourceAsStream(CONFIG_PATH);
+                if (inputStream == null) {
+                    inputStream = Thread.currentThread().getContextClassLoader().getResourceAsStream(CONFIG_PATH);
+                }
+            }
             if (inputStream == null) {
                 String errorMessage = "Configuration file not found: " + CONFIG_PATH;
                 logger.error(errorMessage);
                 throw new DatabaseException(errorMessage, ErrorType.CONFIG_NOT_FOUND);
             }
-            
             return yamlMapper.readValue(inputStream, Map.class);
         } catch (IOException e) {
             String errorMessage = "Failed to load configuration";
             logger.error(errorMessage, e);
             throw new DatabaseException(errorMessage, e, ErrorType.CONFIG_NOT_FOUND);
+        }
+    }
+
+    private InputStream openConfigFile(String configPath) {
+        try {
+            return new java.io.FileInputStream(configPath);
+        } catch (java.io.FileNotFoundException e) {
+            logger.warn("Config file not found at path specified by app.config: {}", configPath);
+            return null;
         }
     }
 

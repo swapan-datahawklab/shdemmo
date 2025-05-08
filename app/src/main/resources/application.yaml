@@ -13,13 +13,21 @@ databases:
         jdbc:
           defaultTemplate: "jdbc:oracle:thin:@//%s:%d/%s"
           thin: "jdbc:oracle:thin:@//%s:%d/%s"
-          ldap: "jdbc:oracle:thin:@ldap://%s:%d/%s,cn=OracleContext,dc=oracle,dc=com"
+          ldap: "jdbc:oracle:thin:@%s"
+        ldap:
+          servers:
+            - oid1puser.example.com
+            - oid2puser.example.com
+            - oid3puser.example.com
+          context: "cn=OracleContext,dc=example,dc=com"
+          port: 389
         sql:
           procedure: "{ ? = call %s(%s) }"
           validation:
             plsql: "BEGIN DBMS_UTILITY.COMPILE_SCHEMA('%s', FALSE); %s END;"
             sql: "SELECT 1 FROM DUAL WHERE EXISTS (%s)"
             explain: "EXPLAIN PLAN FOR %s"
+
       properties:
         java.naming.factory.initial: "com.sun.jndi.ldap.LdapCtxFactory"
         java.naming.security.authentication: "simple"

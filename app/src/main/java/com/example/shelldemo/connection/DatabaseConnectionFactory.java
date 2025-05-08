@@ -10,8 +10,7 @@ import org.apache.logging.log4j.Logger;
 import com.example.shelldemo.exception.DatabaseException;
 import com.example.shelldemo.exception.DatabaseException.ErrorType;
 import com.example.shelldemo.config.ConfigurationHolder;
-import java.util.Optional;
-import java.util.Arrays;
+
 
 /**
  * Factory for creating database connections using validated configurations.
@@ -94,50 +93,69 @@ public class DatabaseConnectionFactory {
         return createConnection(config);
     }
 
-    private <T> Optional<T> getNestedValue(Map<String, Object> map, Class<T> type, String... keys) {
-        return Optional.ofNullable(map)
-            .map(m -> keys.length == 0 ? m.get(keys[0]) : 
-                Arrays.stream(keys).reduce(m.get(keys[0]), this::getNextValue, (a, b) -> b))
-            .filter(type::isInstance)
-            .map(type::cast);
-    }
-
-    private Object getNextValue(Object obj, String key) {
-        return obj instanceof Map ? ((Map<?, ?>) obj).get(key) : null;
-    }
-
-    private String buildConnectionUrl(ConnectionConfig config) {
+    public String buildConnectionUrl(ConnectionConfig config) {
         Map<String, Object> dbmsConfig = ConfigurationHolder.getInstance().getDatabaseConfig(config.getDbType());
-        
-        // Get templates from configuration
         @SuppressWarnings("unchecked")
         Map<String, Object> templates = (Map<String, Object>) dbmsConfig.get("templates");
         if (templates != null) {
             logger.info("Available templates configuration:");
             templates.forEach((key, value) -> logger.info("  {} -> {}", key, value));
         }
-
-        // Get JDBC templates
         @SuppressWarnings("unchecked")
         Map<String, Object> jdbc = templates != null ? (Map<String, Object>) templates.get("jdbc") : null;
-        
-        String urlTemplate = jdbc != null ? (String) jdbc.get("defaultTemplate") : null;
-        
-        if (urlTemplate == null) {
-            logger.error("No URL template found for database type: {}", config.getDbType());
-            throw new DatabaseException(
-                String.format("Missing URL template for database type: %s", config.getDbType()),
-                ErrorType.CONFIG_NOT_FOUND
+
+        if ("ldap".equalsIgnoreCase(config.getConnectionType())) {
+            return buildLdapConnectionUrl(config, templates, jdbc);
+        } else {
+            String urlTemplate = jdbc != null ? (String) jdbc.get("defaultTemplate") : null;
+            if (urlTemplate == null) {
+                urlTemplate = jdbc != null ? (String) jdbc.get("default") : null;
+            }
+            if (urlTemplate == null) {
+                throw new DatabaseException(
+                    String.format("Missing URL template for database type: %s", config.getDbType()),
+                    ErrorType.CONFIG_NOT_FOUND
+                );
+            }
+            String url = String.format(
+                urlTemplate,
+                config.getHost(),
+                config.getPort(),
+                config.getServiceName()
             );
+            logger.debug("Built connection URL: {}", url);
+            return url;
         }
-        
-        String url = String.format(
-            urlTemplate,
-            config.getHost(),
-            config.getPort(),
-            config.getServiceName()
-        );
-        logger.debug("Built connection URL: {}", url);
+    }
+
+    private String buildLdapConnectionUrl(ConnectionConfig config, Map<String, Object> templates, Map<String, Object> jdbc) {
+        String urlTemplate = jdbc != null ? (String) jdbc.get("ldap") : null;
+        if (urlTemplate == null) {
+            throw new DatabaseException("Missing LDAP URL template for Oracle", ErrorType.CONFIG_NOT_FOUND);
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ldapConfig = (Map<String, Object>) templates.get("ldap");
+        if (ldapConfig == null) {
+            throw new DatabaseException("Missing LDAP config for Oracle", ErrorType.CONFIG_NOT_FOUND);
+        }
+        @SuppressWarnings("unchecked")
+        java.util.List<String> servers = (java.util.List<String>) ldapConfig.get("servers");
+        String context = (String) ldapConfig.get("context");
+        Object portObj = ldapConfig.get("port");
+        int port = (portObj instanceof Number number) ? number.intValue() : 389;
+        String service = config.getServiceName();
+
+        if (servers == null || servers.isEmpty() || context == null || service == null) {
+            throw new DatabaseException("Incomplete LDAP configuration for Oracle", ErrorType.CONFIG_INVALID);
+        }
+
+        StringBuilder hosts = new StringBuilder();
+        for (int i = 0; i < servers.size(); i++) {
+            if (i > 0) hosts.append(" ");
+            hosts.append(String.format("ldap://%s:%d/%s,%s", servers.get(i), port, service, context));
+        }
+        String url = String.format(urlTemplate, hosts.toString());
+        logger.debug("Built LDAP connection URL: {}", url);
         return url;
     }
 

@@ -1486,3 +1486,22 @@ try (FileOutputStream out = new FileOutputStream("output.json");
     executeQueryWithStreaming("SELECT * FROM users", streamer, 1000);
 }
     ```
+
+
+
+    private <T> Optional<T> getNestedValue(Map<String, Object> map, Class<T> type, String... keys) {
+        return Optional.ofNullable(map)
+            .map(m -> keys.length == 0 ? m.get(keys[0]) :
+                Arrays.stream(keys).reduce(m.get(keys[0]), this::getNextValue, (a, b) -> b))
+            .filter(type::isInstance)
+            .map(type::cast);
+    }
+
+    private Object getNextValue(Object obj, String key) {
+        return obj instanceof Map ? ((Map<?, ?>) obj).get(key) : null;
+    }
+
+
+
+import java.util.Optional;
+import java.util.Arrays;
