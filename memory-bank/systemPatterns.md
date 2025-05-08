@@ -1,430 +1,220 @@
+# System Patterns
 
-# System Patterns<!-- markdownlint-disable MD022 MD032 MD022 MD02 MD009 MD047 MD028 MD037 MD040-->
-## Architecture Overview
+## Core Architecture
 
-The SQL Parser is designed with a modular, pipeline-based architecture that enables flexibility, extensibility, and high performance. The system follows a multi-stage parsing approach with clear separation of concerns.
+The system follows a layered architecture with clear separation of concerns:
 
 ```mermaid
 graph TD
-    Input[SQL Input] --> Lexer
-    Lexer[Lexer] --> TokenStream[Token Stream]
-    TokenStream --> Parser[Parser]
-    Parser --> AST[Abstract Syntax Tree]
-    AST --> Analyzer[Analyzer]
-    AST --> Transformer[Transformer]
-    AST --> Generator[Generator]
-    Analyzer --> Analysis[Analysis Results]
-    Transformer --> TransformedAST[Transformed AST]
-    TransformedAST --> Generator
-    Generator --> Output[SQL Output]
-
-    subgraph Dialect System
-        DialectRegistry[Dialect Registry]
-        DialectRegistry -.-> Lexer
-        DialectRegistry -.-> Parser
-        DialectRegistry -.-> Transformer
-        DialectRegistry -.-> Generator
-    end
+    CLI[CLI Layer] --> Operations[Operations Layer]
+    Operations --> Connection[Connection Layer]
+    Operations --> Validation[Validation Layer]
+    Operations --> Parser[Parser Layer]
+    Operations --> Error[Error Handling Layer]
 ```
 
-## Core Components
+### 1. CLI Layer
+- Entry point through `UnifiedDatabaseRunner`
+- Command-line argument processing
+- Initial configuration loading
+- Operation orchestration
 
-### 1. Lexer
+### 2. Operations Layer
+- Core business logic in `UnifiedDatabaseOperation`
+- Transaction management
+- Statement execution
+- Resource cleanup
+- Partitions DML and non-DML statements for script execution; DML can be executed transactionally via CLI flag
+- Enforces builder pattern: UnifiedDatabaseOperation must be constructed via UnifiedDatabaseOperation.builder()
 
-The lexer is responsible for tokenizing SQL input into a stream of tokens.
+### 3. Connection Layer
+- Database connectivity management
+- Driver loading via SPI
+- Connection pooling and lifecycle
+- Connection configuration
 
-**Key Patterns:**
-- **Token Definition**: Each SQL token type (keywords, identifiers, literals, operators) is clearly defined
-- **State Management**: The lexer maintains state for handling complex tokens (quoted strings, comments)
-- **Error Recovery**: The lexer can recover from common syntax errors to continue processing
-- **Dialect Awareness**: Token definitions can vary based on the active SQL dialect
+### 4. Validation Layer
+- SQL syntax validation
+- PL/SQL block validation
+- Execution plan generation
+- Statement type detection
 
-```typescript
-// Token type definition
-export enum TokenType {
-  KEYWORD,
-  IDENTIFIER,
-  STRING_LITERAL,
-  NUMERIC_LITERAL,
-  OPERATOR,
-  PUNCTUATION,
-  WHITESPACE,
-  COMMENT,
-  ERROR,
-  EOF
-}
+### 5. Parser Layer
+- SQL script parsing
+- Stored procedure parsing
+- Statement separation
+- Comment handling
 
-// Token interface
-export interface Token {
-  type: TokenType;
-  value: string;
-  start: number;
-  end: number;
-  line: number;
-  column: number;
-}
+### 6. Error Layer
+- Exception hierarchy
+- Error formatting
+- DBMS-specific error mapping
+- Error context preservation
+
+## Design Patterns
+
+### 1. Builder Pattern
+Used in `UnifiedDatabaseOperation` for flexible object construction:
+```java
+UnifiedDatabaseOperation operation = new UnifiedDatabaseOperation.Builder()
+    .host(host)
+    .port(port)
+    .username(username)
+    // ... other properties
+    .build();
 ```
 
-### 2. Parser
+### 2. Factory Pattern
+Implemented in `DatabaseConnectionFactory` for creating database connections:
+- Encapsulates connection creation logic
+- Handles different database types
+- Manages connection properties
+- Provides connection validation
 
-The parser consumes the token stream and produces an Abstract Syntax Tree (AST) representing the SQL statement structure.
-
-**Key Patterns:**
-- **Recursive Descent**: Implements a recursive descent parser for clear, maintainable code
-- **Lookahead**: Uses lookahead to resolve ambiguities in the grammar
-- **Error Handling**: Provides detailed error messages with context and suggestions
-- **AST Node Types**: Defines a clear hierarchy of node types representing SQL constructs
-
-```typescript
-// Base AST node interface
-export interface ASTNode {
-  type: string;
-  start: number;
-  end: number;
+### 3. Strategy Pattern
+Applied in SQL execution handling:
+```java
+@FunctionalInterface
+public interface SqlExecutor {
+    Object execute(Statement stmt, String sql) throws SQLException;
 }
 
-// Example of a SELECT statement node
-export interface SelectStatement extends ASTNode {
-  type: 'SELECT_STATEMENT';
-  columns: Array<ColumnReference | Expression>;
-  from?: TableReference;
-  where?: Expression;
-  groupBy?: Array<Expression>;
-  having?: Expression;
-  orderBy?: Array<OrderByExpression>;
-  limit?: Expression;
-  offset?: Expression;
-}
+private static final SqlExecutor PLSQL_EXECUTOR = (stmt, sql) -> {
+    // PL/SQL execution strategy
+};
+
+private static final SqlExecutor SQL_EXECUTOR = (stmt, sql) -> {
+    // Regular SQL execution strategy
+};
 ```
 
-### 3. Analyzer
+### 4. Facade Pattern
+`UnifiedDatabaseOperation` acts as a facade, providing a simplified interface for:
+- Script execution
+- Stored procedure calls
+- Validation operations
+- Transaction management
 
-The analyzer performs various analyses on the AST without modifying it.
-
-**Key Patterns:**
-- **Visitor Pattern**: Uses the visitor pattern to traverse the AST
-- **Collection Builders**: Builds collections of references, dependencies, etc.
-- **Metrics Calculation**: Computes complexity metrics and other statistics
-- **Plugin System**: Allows custom analyzers to be plugged in
-
-```typescript
-// Visitor interface
-export interface Visitor {
-  visitSelectStatement(node: SelectStatement): void;
-  visitTableReference(node: TableReference): void;
-  visitColumnReference(node: ColumnReference): void;
-  // Other visit methods...
-}
-
-// Example analyzer using visitor pattern
-export class TableReferenceAnalyzer implements Visitor {
-  private tables: Set<string> = new Set();
-  
-  // Implementation of visitor methods
-  visitTableReference(node: TableReference): void {
-    this.tables.add(node.name);
-  }
-  
-  // Method to get analysis results
-  getTables(): string[] {
-    return Array.from(this.tables);
-  }
+### 5. Context Object Pattern
+Used in validation operations:
+```java
+public class DatabaseOperationValidationContext {
+    private final Connection connection;
+    private final boolean showExplainPlan;
+    private int statementCount;
+    private String currentUsername;
+    // ... methods
 }
 ```
 
-### 4. Transformer
+### 6. SPI Pattern
+Implemented for JDBC driver loading:
+- Dynamic driver discovery
+- Driver wrapping
+- ServiceLoader integration
 
-The transformer modifies the AST to create new SQL variants or optimized versions.
+### Builder Pattern
+- All instances of UnifiedDatabaseOperation must be constructed via the static builder() method for consistency and discoverability.
 
-**Key Patterns:**
-- **Tree Transformation**: Implements AST-to-AST transformations
-- **Dialect Mapping**: Maps constructs between different SQL dialects
-- **Rule-Based Transformations**: Applies transformation rules based on patterns
-- **Immutability**: Creates new AST nodes rather than modifying existing ones
+## Error Handling Pattern
 
-```typescript
-// Transformer interface
-export interface Transformer {
-  transform(ast: ASTNode): ASTNode;
-}
-
-// Example dialect transformer
-export class MySQLToPostgreSQLTransformer implements Transformer {
-  transform(ast: ASTNode): ASTNode {
-    // Implementation of dialect-specific transformations
-    return transformedAst;
-  }
-}
-```
-
-### 5. Generator
-
-The generator produces SQL text from an AST, with options for formatting and dialect-specific syntax.
-
-**Key Patterns:**
-- **Visitor-Based Generation**: Uses visitors to generate SQL from AST nodes
-- **Formatting Controls**: Supports various formatting options (indentation, line breaks)
-- **Dialect-Specific Output**: Generates SQL specific to the target dialect
-- **Optimization Hints**: Can include optimizer hints based on the target system
-
-```typescript
-// SQL Generator interface
-export interface SQLGenerator {
-  generate(ast: ASTNode): string;
-}
-
-// Example PostgreSQL generator
-export class PostgreSQLGenerator implements SQLGenerator {
-  private options: GeneratorOptions;
-  
-  constructor(options: GeneratorOptions) {
-    this.options = options;
-  }
-  
-  generate(ast: ASTNode): string {
-    // Implementation of PostgreSQL-specific generation
-    return sqlString;
-  }
-}
-```
-
-## Cross-Cutting Patterns
-
-### 1. Dialect System
-
-The dialect system manages SQL dialect variations across all components.
-
-**Key Patterns:**
-- **Dialect Registry**: Central registry of supported dialects and their features
-- **Feature Detection**: Ability to check if a feature is supported in a dialect
-- **Inheritance**: Dialects can inherit from a common base (e.g., ANSI SQL)
-- **Extensibility**: Custom dialects can be registered by users
-
-```typescript
-// Dialect interface
-export interface Dialect {
-  name: string;
-  extends?: string;
-  features: Set<string>;
-  supportsFeature(feature: string): boolean;
-}
-
-// Dialect registry
-export class DialectRegistry {
-  private dialects: Map<string, Dialect> = new Map();
-  
-  register(dialect: Dialect): void {
-    this.dialects.set(dialect.name, dialect);
-  }
-  
-  getDialect(name: string): Dialect | undefined {
-    return this.dialects.get(name);
-  }
-}
-```
-
-### 2. Error Handling
-
-Comprehensive error handling strategy across all components.
-
-**Key Patterns:**
-- **Detailed Error Objects**: Error objects with position, context, and suggestions
-- **Error Recovery**: Ability to continue parsing after encountering errors
-- **Error Aggregation**: Collection of multiple errors in a single pass
-- **Custom Error Types**: Specific error types for different kinds of issues
-
-```typescript
-// SQL Error interface
-export interface SQLError {
-  message: string;
-  code: string;
-  start: number;
-  end: number;
-  line: number;
-  column: number;
-  suggestion?: string;
-  severity: 'ERROR' | 'WARNING' | 'INFO';
-}
-
-// Error collector
-export class ErrorCollector {
-  private errors: SQLError[] = [];
-  
-  addError(error: SQLError): void {
-    this.errors.push(error);
-  }
-  
-  hasErrors(): boolean {
-    return this.errors.some(e => e.severity === 'ERROR');
-  }
-  
-  getErrors(): SQLError[] {
-    return this.errors;
-  }
-}
-```
-
-### 3. Plugin System
-
-Extensibility through a plugin architecture.
-
-**Key Patterns:**
-- **Plugin Registry**: Central registry for plugins
-- **Hook Points**: Well-defined extension points throughout the system
-- **Plugin API**: Clear API for developing plugins
-- **Plugin Discovery**: Automatic discovery of installed plugins
-
-```typescript
-// Plugin interface
-export interface Plugin {
-  name: string;
-  version: string;
-  hooks: Map<string, Function>;
-}
-
-// Plugin registry
-export class PluginRegistry {
-  private plugins: Map<string, Plugin> = new Map();
-  
-  register(plugin: Plugin): void {
-    this.plugins.set(plugin.name, plugin);
-  }
-  
-  getPlugin(name: string): Plugin | undefined {
-    return this.plugins.get(name);
-  }
-  
-  getHooks(hookName: string): Function[] {
-    const hooks: Function[] = [];
-    this.plugins.forEach(plugin => {
-      const hook = plugin.hooks.get(hookName);
-      if (hook) hooks.push(hook);
-    });
-    return hooks;
-  }
-}
-```
-
-## Data Flow
-
-### 1. Parsing Pipeline
-
-The main data flow through the system follows a pipeline pattern.
-
+### 1. Exception Hierarchy
 ```mermaid
-flowchart LR
-    Input[SQL Input] --> Lexer
-    Lexer --> Parser
-    Parser --> AST[AST]
-    AST --> PipelineEnd{End or Continue?}
-    PipelineEnd -->|End| Results[Results]
-    PipelineEnd -->|Transform| Transformer
-    Transformer --> NewAST[New AST]
-    NewAST --> PipelineEnd
+graph TD
+    DE[DatabaseException] --> PE[ParserException]
+    DE --> DCE[DatabaseConnectionException]
+    DE --> DOE[DatabaseOperationException]
+    PE --> SPE[StoredProcedureParseException]
+    PE --> SQE[SqlParseException]
 ```
 
-**Key Patterns:**
-- **Streaming**: Support for streaming large inputs
-- **Pipeline Configuration**: Configurable pipeline stages
-- **Early Termination**: Ability to stop at any stage and return results
-- **Parallel Processing**: Potential for parallel processing of independent statements
+### 2. Error Type Enumeration
+- Categorized error codes
+- Vendor-specific mappings
+- Context preservation
+- Standardized formatting
 
-### 2. Error Propagation
+## Validation Patterns
 
-Errors flow through the system alongside valid results.
+### 1. Pre-execution Validation
+- Syntax checking
+- PL/SQL block validation
+- Execution plan generation
+- Parameter validation
 
-```mermaid
-flowchart TD
-    Input[SQL Input] --> Lexer
-    Lexer --> LexerErrors[Lexer Errors]
-    Lexer --> TokenStream[Token Stream]
-    TokenStream --> Parser
-    Parser --> ParserErrors[Parser Errors]
-    Parser --> AST[AST]
-    LexerErrors --> ErrorCollector[Error Collector]
-    ParserErrors --> ErrorCollector
-    AST --> Analyzer
-    Analyzer --> AnalyzerErrors[Analyzer Errors]
-    AnalyzerErrors --> ErrorCollector
-    ErrorCollector --> Results[Results]
+### 2. Statement Type Detection
+```java
+public boolean isPLSQL(String sql) {
+    return sql.startsWith("BEGIN") ||
+           sql.startsWith("DECLARE") ||
+           sql.startsWith("CREATE") ||
+           sql.contains("END;");
+}
 ```
 
-**Key Patterns:**
-- **Error Collection**: Errors are collected rather than immediately throwing
-- **Error Context**: Errors maintain context about their source
-- **Error Severity**: Errors have different severity levels
-- **Error Reporting**: Unified error reporting interface
+## Parser Patterns
 
-## Design Decisions
+### 1. SQL Script Parsing
+- Comment removal
+- Statement separation
+- PL/SQL block detection
+- Error recovery
 
-### 1. Handwritten Parser vs. Parser Generator
+### 2. Stored Procedure Parsing
+- Parameter extraction
+- Type determination
+- Name resolution
+- Validation rules
 
-The system uses a handwritten recursive descent parser rather than a parser generator.
+## Resource Management Pattern
 
-**Rationale:**
-- **Flexibility**: More control over error handling and recovery
-- **Performance**: Can be optimized for specific SQL parsing needs
-- **Maintainability**: Easier to understand and modify for SQL-specific cases
-- **Debugging**: Simpler debugging and troubleshooting
+### 1. AutoCloseable Implementation
+```java
+try (UnifiedDatabaseOperation operation = new UnifiedDatabaseOperation.Builder()
+        .build()) {
+    // Use operation
+}
+```
 
-### 2. Immutable AST
+### 2. Transaction Management
+- Auto-commit handling
+- Rollback on failure
+- Resource cleanup
+- Connection lifecycle
+- DML statements in scripts can be executed in a transaction if requested via CLI flag; DDL/PLSQL always non-transactional
 
-The AST is designed to be immutable, with transformations creating new AST instances.
+## Testing Patterns
 
-**Rationale:**
-- **Predictability**: Prevents unexpected side effects during analysis
-- **Parallelism**: Enables parallel processing without locking
-- **Debugging**: Makes it easier to track changes and debug
-- **Functional Style**: Aligns with functional programming patterns
+### 1. Unit Testing
+- Isolated component testing
+- Mock database connections
+- Error condition verification
+- Parser validation
 
-### 3. Visitor Pattern for Traversal
+### 2. Integration Testing
+- Cross-component testing
+- Database interaction testing
+- Transaction verification
+- Error propagation testing
+- Integration tests verify both transactional and non-transactional DML script execution via CLI
 
-The system uses the visitor pattern extensively for AST traversal.
+## Database Operations Pattern
+- UnifiedDatabaseOperation class serves as the main entry point for database operations
+- Uses Builder pattern (UnifiedDatabaseOperationBuilder) for construction
+- Implements AutoCloseable for resource management
+- Separates concerns:
+  - ResultSetProcessor for processing result sets
+  - ResultSetStreamer interface for streaming large results
+  - BatchExecutor for batch operations
+  - StatementExecutor for SQL execution
+  - DatabaseErrorHandler for error management
 
-**Rationale:**
-- **Separation of Concerns**: Separates traversal logic from node logic
-- **Extensibility**: Easy to add new operations without modifying node classes
-- **Type Safety**: Provides type safety for different node types
-- **Standardization**: Consistent approach across different components
+## Validation Pattern
+- Dedicated validator classes (StoredProcedureValidator, DatabaserOperationValidator)
+- Static validation methods with clear error messages
+- Throws DatabaseException with specific ErrorType
 
-### 4. Plugin Architecture
-
-The system is designed with a plugin architecture for extensibility.
-
-**Rationale:**
-- **Extensibility**: Allows users to extend functionality without modifying core code
-- **Modularity**: Enables modular development and testing
-- **Community Contributions**: Facilitates community-contributed extensions
-- **Feature Selection**: Users can select only the features they need
-
-## Future Architectural Considerations
-
-### 1. Web Assembly Support
-
-Potential for compiling the parser to WebAssembly for browser use.
-
-**Considerations:**
-- **Performance**: WASM could provide near-native performance in browsers
-- **Size**: Need to optimize for download size
-- **API Design**: May require adapting the API for WASM context
-- **Browser Compatibility**: Consider browser compatibility issues
-
-### 2. Language Server Protocol Integration
-
-Integration with the Language Server Protocol for IDE support.
-
-**Considerations:**
-- **Protocol Alignment**: Mapping SQL parser concepts to LSP
-- **Performance**: Ensuring responsiveness for interactive use
-- **Feature Support**: Implementing required LSP features (completion, validation)
-- **Extension Mechanism**: Leveraging existing plugin system for LSP features
-
-### 3. Incremental Parsing
-
-Support for incremental parsing to improve performance for interactive use.
-
-**Considerations:**
-- **Change Tracking**: Efficient tracking of changes in the source
-- **AST Reuse**: Reusing parts of the AST that haven't changed
-- **Performance Tradeoffs**: Balancing complexity vs. performance gains
-- **API Design**: Designing a clean API for incremental updates 
+## Testing Pattern
+- DatabaseLoginService for connection testing
+- Uses virtual threads for concurrent testing
+- Records test results in CSV format

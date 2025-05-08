@@ -1,5 +1,30 @@
 # Project Progress
 <!-- markdownlint-disable MD022 MD032 MD022 MD02 MD009 MD047 MD028 MD037 MD040-->
+## Completed
+- Database operation core functionality
+- Result set processing and streaming
+- Batch execution support
+- Login validation tool
+- Error handling framework
+- **Optional transactional DML script execution via CLI flag**
+- **Refactored script execution logic to partition DML and non-DML, and only wrap DML in a transaction if requested**
+- **Centralized CLI test helpers in BaseDbTest for reuse**
+- Fixed module dependency naming: replaced all references to 'shdemmo-app' with 'dbscriptrunner' in all POM files
+- Resolved build failure in database-login-validation-tool by correcting app module dependency
+
+## In Progress
+- Code cleanup and organization
+- Naming improvements
+- Documentation updates
+
+## Known Issues
+- None currently identified
+
+## Next Steps
+- Consider adding more comprehensive database type support
+- Enhance test coverage
+- Review and optimize resource management
+
 ## Completed Components
 
 ### Core Infrastructure
@@ -56,6 +81,30 @@
   - SQL explain plan generation
   - PL/SQL validation
 
+## Recently Completed
+- Implemented unified error handling system
+  - Created DatabaseException with ErrorType categorization
+  - Developed DatabaseErrorFormatter with two-tier error handling
+  - Added configuration-driven vendor error mappings
+  - Enhanced error context and messaging
+  - **Added --transactional CLI flag for DML script execution (default: non-transactional)**
+  - **Refactored UnifiedDatabaseOperation and UnifiedDatabaseRunner for transactional DML support**
+  - **Added/updated integration tests for transactional and non-transactional DML execution**
+  - **Moved CLI test helpers to BaseDbTest for reuse**
+- Fixed module dependency naming and ensured successful multi-module build
+
+## Current Status
+- Error handling system is operational
+- Configuration-based error mapping is in place
+- Generic database operation support is functional
+- **Transactional DML CLI flag and related test coverage are in place**
+- All modules build successfully after dependency and artifactId corrections
+
+## Next Planned Features
+1. Comprehensive vendor error mapping configuration
+2. Error handling documentation
+3. Cross-database testing suite
+
 ## In Progress
 
 ### Documentation
@@ -91,17 +140,10 @@
 - ⏳ Multi-threaded script execution
 - ⏳ Memory optimization for very large scripts
 
-## Known Issues
-
-1. **Large File Handling**: Performance degradation with extremely large SQL files (>50MB)
-2. **Complex PL/SQL**: Some complex nested PL/SQL constructs may not parse correctly
-3. **CLOB/BLOB Parameters**: Limited support for very large parameter values
-4. **Dialect Coverage**: Not all dialect-specific features are supported across all database types
-
 ## Next Steps
 
 1. Complete the comprehensive test suite
 2. Finalize user documentation
 3. Implement CSV export functionality
 4. Add support for additional database types
-5. Performance optimization for large script files 
+5. Performance optimization for large script files

@@ -75,7 +75,7 @@ DECLARE
     constraint_rec('jobs', 'job_id_pk', 'P', 'PRIMARY KEY (job_id)'),
     constraint_rec('employees', 'emp_id_pk', 'P', 'PRIMARY KEY (employee_id)'),
     constraint_rec('job_history', 'jhist_id_pk', 'P', 'PRIMARY KEY (employee_id, start_date)'),
-    
+
     -- Foreign key constraints
     constraint_rec('countries', 'countr_reg_fk', 'F', 'FOREIGN KEY (region_id) REFERENCES regions(region_id)'),
     constraint_rec('locations', 'loc_c_id_fk', 'F', 'FOREIGN KEY (country_id) REFERENCES countries(country_id)'),
@@ -91,7 +91,7 @@ DECLARE
     -- Check constraints
     constraint_rec('employees', 'emp_salary_min', 'C', 'CHECK (salary > 0)'),
     constraint_rec('job_history', 'jhist_date_interval', 'C', 'CHECK (end_date > start_date)'),
-    
+
     -- Unique constraints
     constraint_rec('departments', 'dept_name_uk', 'U', 'UNIQUE (department_name)'),
     constraint_rec('jobs', 'job_title_uk', 'U', 'UNIQUE (job_title)'),

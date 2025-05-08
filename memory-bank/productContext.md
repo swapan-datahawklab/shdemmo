@@ -1,16 +1,200 @@
 # Product Context
 <!-- markdownlint-disable MD022 MD032 MD022 MD02 MD009 MD047 MD028 MD037 MD040-->
-## Problem Statement
+## Purpose
 
-SQL continues to be one of the most widely used languages for database operations, with multiple dialects across different database systems. Developers, database administrators, and data analysts face several challenges when working with SQL:
+The Shell Demo Database Utility is a comprehensive command-line tool designed to streamline database operations across multiple database systems. It serves as a unified interface for database administrators, developers, and DevOps engineers to interact with different database platforms using a consistent set of commands and workflows.
 
-1. **Cross-Dialect Development**: Code written for one SQL dialect often breaks when moved to another database system
-2. **Validation Challenges**: Syntax errors are typically only caught at runtime, causing production issues
-3. **IDE Limitations**: Most code editors lack proper SQL intelligence across multiple dialects
-4. **Query Analysis**: Understanding complex SQL for optimization or security review is manual and error-prone
-5. **Code Generation**: Hand-crafting complex SQL is tedious and inconsistent
+## Problems Solved
 
-Our SQL Parser aims to solve these problems by providing a robust, extensible tool for parsing, analyzing, and transforming SQL across multiple dialects.
+### 1. Database Heterogeneity
+- **Challenge**: Organizations often use multiple database systems (Oracle, SQL Server, PostgreSQL, MySQL)
+- **Solution**: Provides a unified interface that abstracts away database-specific differences
+- **Benefit**: Users can work with any supported database using the same commands and patterns
+
+### 2. Script Execution Complexity
+- **Challenge**: Managing SQL script execution across different environments
+- **Solution**: Robust script parsing and execution with transaction support
+- **Benefit**: Reliable and consistent script execution with proper error handling
+
+### 3. Stored Procedure Management
+- **Challenge**: Different syntax and calling conventions for stored procedures
+- **Solution**: Unified stored procedure execution interface with parameter handling
+- **Benefit**: Simplified stored procedure management across database platforms
+
+### 4. SQL Validation
+- **Challenge**: Catching SQL errors before production deployment
+- **Solution**: Pre-flight validation with execution plan generation
+- **Benefit**: Reduced risk of deployment failures and performance issues
+
+### 5. Driver Management
+- **Challenge**: Managing JDBC drivers for different databases
+- **Solution**: Dynamic driver loading via SPI with custom driver support
+- **Benefit**: Flexible driver management without hard dependencies
+
+## Core Functionality
+
+### 1. SQL Script Execution
+```mermaid
+graph TD
+    A[SQL Script] --> B[Parser]
+    B --> C[Validator]
+    C --> D[Executor]
+    D --> E[Transaction Manager]
+    E --> F[Results Handler]
+```
+
+- Parses SQL files into individual statements
+- Handles different SQL dialects and comment styles
+- Supports transaction management for DML scripts via CLI flag (--transactional)
+- Provides detailed execution feedback
+
+### 2. Stored Procedure Execution
+```mermaid
+graph TD
+    A[Procedure Call] --> B[Parameter Parser]
+    B --> C[Type Resolution]
+    C --> D[Execution]
+    D --> E[Results Processing]
+```
+
+- Supports IN, OUT, and INOUT parameters
+- Handles different parameter types
+- Returns procedure results
+- Manages function return values
+
+### 3. Validation Features
+```mermaid
+graph TD
+    A[SQL Input] --> B[Syntax Check]
+    B --> C[Execution Plan]
+    C --> D[Resource Analysis]
+    D --> E[Validation Report]
+```
+
+- SQL syntax validation
+- Execution plan generation
+- PL/SQL block validation
+- Resource usage estimation
+
+### 4. Connection Management
+```mermaid
+graph TD
+    A[Connection Request] --> B[Config Validation]
+    B --> C[Driver Loading]
+    C --> D[Pool Management]
+    D --> E[Connection Handling]
+```
+
+- Secure connection handling
+- Connection pooling
+- Custom driver support
+- Connection validation
+
+## User Experience
+
+### 1. Command-Line Interface
+```bash
+db -t oracle -H localhost -P 1521 -u system -p password -d ORCLPDB1 script.sql
+# Optional: --transactional to execute DML scripts in a transaction
+```
+
+- Intuitive command structure
+- Consistent across databases
+- Comprehensive help system
+- Error feedback
+- **Optional transactional DML script execution via --transactional flag**
+
+### 2. Configuration Options
+- Database-specific settings
+- Connection parameters
+- Execution preferences
+- Logging configuration
+
+### 3. Output Formats
+- Console output
+- CSV export
+- Execution logs
+- Error reports
+
+## Use Cases
+
+### 1. Development
+- Execute database changes
+- Test stored procedures
+- Validate SQL scripts
+- Debug database issues
+
+### 2. Deployment
+- Run migration scripts
+- Validate changes pre-deployment
+- Execute post-deployment checks
+- Manage database updates
+
+### 3. Administration
+- Monitor database health
+- Execute maintenance tasks
+- Manage database objects
+- Handle configuration changes
+
+### 4. Testing
+- Validate database changes
+- Run test scripts
+- Verify stored procedures
+- Check database connectivity
+
+## Integration Points
+
+### 1. Database Systems
+- Oracle Database
+- Microsoft SQL Server
+- PostgreSQL
+- MySQL
+
+### 2. Development Tools
+- Version Control Systems
+- CI/CD Pipelines
+- Build Tools
+- Testing Frameworks
+
+### 3. Monitoring Systems
+- Logging Integration
+- Performance Monitoring
+- Error Tracking
+- Audit Trail
+
+## Future Enhancements
+
+### 1. Planned Features
+- Schema comparison tools
+- Data migration utilities
+- Performance optimization suggestions
+- Enhanced security features
+
+### 2. Integration Opportunities
+- Cloud database support
+- Container orchestration
+- Additional database types
+- API interface
+
+## Success Metrics
+
+### 1. Performance
+- Script execution time
+- Connection management efficiency
+- Resource utilization
+- Response times
+
+### 2. Reliability
+- Error handling effectiveness
+- Transaction consistency
+- Data integrity
+- System stability
+
+### 3. Usability
+- Command completion time
+- Learning curve reduction
+- Error message clarity
+- Documentation effectiveness
 
 ## Target Users
 
@@ -269,4 +453,4 @@ Our SQL Parser provides a unique combination of features that differentiate it f
 4. **Performance**: Efficient handling of large SQL files with minimal memory footprint
 5. **Comprehensive Analysis**: Extract insights from SQL beyond basic syntax validation
 
-By addressing the needs of database developers, administrators, and tool builders, our SQL Parser enables more efficient SQL development, simplified cross-database compatibility, and deeper query analysis capabilities. 
+By addressing the needs of database developers, administrators, and tool builders, our SQL Parser enables more efficient SQL development, simplified cross-database compatibility, and deeper query analysis capabilities.

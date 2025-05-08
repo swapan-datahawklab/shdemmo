@@ -34,6 +34,7 @@
     <properties.plugin.version>1.1.0</properties.plugin.version>
     <versions.plugin.version>2.16.0</versions.plugin.version>
     <log4j2.transformer.version>2.15</log4j2.transformer.version>
+    <opencsv.version>5.10</opencsv.version>
     
     <!-- Plugin versions -->
     <maven.compiler.plugin.version>3.8.0</maven.compiler.plugin.version>
@@ -45,12 +46,21 @@
     <!-- OS properties -->
     <os.unix>true</os.unix>
     <os.windows>true</os.windows>
-    <skip.bundle.creation>true</skip.bundle.creation>
+    <skip.bundle.creation>false</skip.bundle.creation>
   </properties>
 
   <dependencyManagement>
     <dependencies>
       <!-- Oracle JDBC Driver -->
+      
+      
+<!-- https://mvnrepository.com/artifact/com.opencsv/opencsv -->
+      <dependency>
+          <groupId>com.opencsv</groupId>
+          <artifactId>opencsv</artifactId>
+          <version>${opencsv.version}</version>
+      </dependency>
+
       <dependency>
         <groupId>com.oracle.database.jdbc</groupId>
         <artifactId>ojdbc11</artifactId>
@@ -97,6 +107,15 @@
       </dependency>
       
       <!-- JUnit Dependencies -->
+      
+    <dependency>
+        <groupId>org.apache.logging.log4j</groupId>
+        <artifactId>log4j-core</artifactId>
+        <version>${log4j2.version}</version>
+        <type>test-jar</type>
+        <scope>test</scope>
+   </dependency>
+
       <dependency>
         <groupId>org.junit.jupiter</groupId>
         <artifactId>junit-jupiter-engine</artifactId>

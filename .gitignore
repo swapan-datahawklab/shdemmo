@@ -100,17 +100,13 @@ htmlcov/
 *.port
 nohup.out
 
-# Project specific
-shdemmo-bundle-linux/
-create-distribution/run.sh
-create-distribution/logback.xml
-
-shdemmo-bundle-windows/
-
-# Keep templates and scripts
-!create-distribution/*.template
-!create-distribution/*.sh
 
 # Environment variables
 .env 
-target
+*.-bundle-*.zip
+*-bundle-linux/
+*-bundle-windows/
+logs/
+target/
+**/logs/
+**/target/
