@@ -27,11 +27,12 @@ fi
 if [ "$IS_WINDOWS" = false ] && [ "${OS:-}" = "Windows_NT" ]; then
     IS_WINDOWS=true
 fi
+
+# Set bundle name based on OS
 if [ "$IS_WINDOWS" = true ]; then
     BUNDLE_NAME="shdemmo-bundle-windows"
 else
-    echo "[ERROR] This script must be run on Windows (Git Bash, CMD, or PowerShell)." >&2
-    exit 1
+    BUNDLE_NAME="shdemmo-bundle-unix"
 fi
 
 # Default values (can be overridden by args or auto-detection)
@@ -283,9 +284,8 @@ create_custom_jre() {
         log_info "Creating custom JRE"
         # Remove existing runtime directory if it exists
         [ -d "$BUNDLE_NAME/runtime" ] && rm -rf "$BUNDLE_NAME/runtime"
-        # You may want to add logic to detect required modules or accept as argument
-        # For now, just create a minimal JRE
-        jlink --add-modules java.base,java.logging,java.xml,java.management,java.naming,jdk.unsupported,java.sql,java.desktop \
+        # Create JRE with all necessary modules for database connections
+        jlink --add-modules java.base,java.logging,java.xml,java.management,java.naming,jdk.unsupported,java.sql,java.desktop,java.security.jgss,java.security.sasl,java.net.http,java.compiler,jdk.crypto.ec \
          --output "$BUNDLE_NAME/runtime" \
           --strip-debug --no-man-pages --no-header-files --compress zip-2 || log_warn "jlink failed"
     fi
@@ -302,9 +302,14 @@ create_bundle_readme() {
 
 # Create archive for Windows
 create_bundle_archive() {
-    log_info "Creating Windows bundle archive using PowerShell Compress-Archive..."
-    powershell.exe -Command "Compress-Archive -Path '$BUNDLE_NAME' -DestinationPath '${BUNDLE_NAME}.zip' -Force"
-    log_info "Windows bundle created: ${BUNDLE_NAME}.zip"
+    if [ "$IS_WINDOWS" = true ]; then
+        log_info "Creating Windows bundle archive using PowerShell Compress-Archive..."
+        powershell.exe -Command "Compress-Archive -Path '$BUNDLE_NAME' -DestinationPath '${BUNDLE_NAME}.zip' -Force"
+    else
+        log_info "Creating Unix bundle archive using zip command..."
+        zip -rq "${BUNDLE_NAME}.zip" "$BUNDLE_NAME"
+    fi
+    log_info "Bundle created: ${BUNDLE_NAME}.zip"
 }
 
 print_final_instructions() {
