@@ -2,22 +2,45 @@
 <!-- markdownlint-disable MD022 MD032 MD022 MD02 MD009 MD047 MD028 MD037 MD040-->
 ## Current Focus
 
-The current focus of the project is on enhancing the SQL parser component while maintaining the robust database operation functionality. Key active work items include:
+### Pattern-Based Development
+- Implementing pattern-first approach for code generation
+- Establishing clear guidelines for pattern application
+- Documenting pattern evolution process
+- Creating example implementations of common patterns
+- Added optional transactional DML script execution via CLI flag
+- Refactored script execution logic to partition DML and non-DML, and only wrap DML in a transaction if requested
+- Centralized CLI test helpers in BaseDbTest for reuse
+- Ensuring all module and artifact references are consistent across the multi-module Maven build
 
-1. **SQL Parser Refinement**
-   - Improving PL/SQL block parsing for complex nested structures
-   - Enhancing error recovery mechanisms during parsing
-   - Optimizing memory usage for large SQL files
+### Recent Changes
+- Added comprehensive pattern application strategy
+- Created pattern hierarchy for code generation
+- Documented pattern evolution process
+- Added concrete examples of pattern implementation
+- Renamed executeScriptWithBatching to executeDmlScriptWithBatching for clarity
+- Maintained separation between ResultSetStreamer and ResultSetProcessor
+- Fixed UnifiedDatabaseOperation.Builder reference to UnifiedDatabaseOperationBuilder
+- Enhanced error handling in DatabaseLoginService
+- Added --transactional CLI flag for DML script execution (default: non-transactional)
+- Refactored UnifiedDatabaseOperation and UnifiedDatabaseRunner for transactional DML support
+- Added/updated integration tests for transactional and non-transactional DML execution
+- Moved CLI test helpers to BaseDbTest for reuse
+- Fixed module dependency naming: replaced all references to 'shdemmo-app' with 'dbscriptrunner' in all POM files
+- Resolved build failure in database-login-validation-tool by correcting app module dependency
 
-2. **Stored Procedure Support Enhancement**
-   - Expanding parameter type support for complex data types
-   - Adding better validation for stored procedure calls
-   - Implementing result set handling improvements
+### Next Steps
+1. Apply pattern-first approach to upcoming features
+2. Review existing code for pattern compliance
+3. Document any new patterns discovered
+4. Create additional pattern examples as needed
+5. Expand test coverage for new CLI features and transactional logic
+6. Update documentation to reflect new CLI options and behaviors
 
-3. **Performance Optimization**
-   - Profiling the parsing process to identify bottlenecks
-   - Implementing more efficient string handling during parsing
-   - Adding optional batch processing for suitable statement types
+### Active Decisions
+1. Using pattern-first development approach
+2. Following established pattern hierarchy
+3. Maintaining pattern documentation
+4. Evolving patterns based on new requirements
 
 ## Recent Changes
 
@@ -34,9 +57,10 @@ Recent work on the codebase has involved:
    - Added support for stored procedure parameter passing
 
 3. **Error Handling Updates**
-   - Created hierarchical exception system
-   - Added error codes for specific error conditions
-   - Improved error messages with context information
+   - Consolidated multiple database exception classes into a single `DatabaseException`
+   - Implemented a generic-first approach using SQLState codes with vendor-specific fallbacks
+   - Moved error mappings to configuration (application.yaml)
+   - Enhanced error context with both standard and vendor-specific information
 
 ## Next Steps
 
@@ -93,4 +117,4 @@ The development is proceeding with these constraints in mind:
 3. **Security Considerations**
    - Must handle credentials securely
    - Should prevent SQL injection in dynamic operations
-   - Need to ensure proper transaction isolation 
+   - Need to ensure proper transaction isolation

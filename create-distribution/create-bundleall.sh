@@ -7,6 +7,53 @@ set -e
 export MSYS_NO_PATHCONV=1
 export MSYS2_ARG_CONV_EXCL="*"
 
+# Default values (can be overridden by args or auto-detection)
+APP_NAME=""
+APP_VERSION=""
+MAIN_CLASS=""
+BUNDLE_NAME=""
+TEMPLATE_DIR="create-distribution/templates"
+OUTPUT_DIR="."
+DRIVERS_FILE="create-distribution/drivers.properties"
+ARTIFACT=""
+ADD_COMMON_DRIVERS=true
+
+# Colors for output
+if [ -t 1 ]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    NC='\033[0m' # No Color
+else
+    RED=''
+    GREEN=''
+    YELLOW=''
+    NC=''
+fi
+
+# Help function
+show_help() {
+cat << EOF
+Usage: $(basename "$0") [options]
+
+Options:
+    --app-name NAME         Application name (default: auto-detect from pom.xml)
+    --app-version VERSION   Application version (default: auto-detect from pom.xml)
+    --main-class CLASS      Main class (default: auto-detect from pom.xml)
+    --bundle-name NAME      Output bundle directory name (default: auto-detect)
+    --template-dir DIR      Directory for templates (default: create-distribution/templates)
+    --output-dir DIR        Output directory (default: .)
+    --drivers-file FILE     JDBC drivers properties file (default: create-distribution/drivers.properties)
+    --artifact PATH         Path to built JAR/WAR (default: auto-detect)
+    -a, --add-drivers       Download common JDBC drivers
+    -h, --help              Show this help message
+
+Example:
+    ./$(basename "$0") --app-name myapp --app-version 1.2.3 --main-class com.example.Main --add-drivers
+EOF
+    exit 0
+}
+
 # Detect OS and shell environment
 detect_environment() {
     case "$(uname -s)" in
@@ -25,33 +72,14 @@ detect_environment() {
     esac
 }
 
-# Help function
-show_help() {
-    cat << EOF
-Usage: $(basename "$0") [options]
-
-Options:
-    -h, --help              Show this help message
-    -a, --add-drivers      Download common JDBC drivers from Maven (Oracle, MySQL, PostgreSQL, SQL Server)
-
-The --add-drivers flag will download JDBC drivers specified in drivers.properties and include them in the bundle.
-Drivers will be organized by type in the bundle's 'drivers' directory.
-
-Example:
-    ./$(basename "$0") --add-drivers    # Create bundle with all common JDBC drivers
-    ./$(basename "$0")                  # Create bundle without drivers
-EOF
-    exit 0
+log_info() {
+    echo -e "${GREEN}[INFO]${NC} $*"
 }
-
-# Get absolute path in a cross-platform way
-get_absolute_path() {
-    local path="$1"
-    if [ "$IS_WINDOWS" = true ]; then
-        echo "$(cd "$(dirname "$path")" && pwd -W)/$(basename "$path")"
-    else
-        echo "$(cd "$(dirname "$path")" && pwd)/$(basename "$path")"
-    fi
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $*" >&2
+}
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $*"
 }
 
 # Find Maven repository in a cross-platform way
@@ -64,45 +92,25 @@ find_maven_home() {
 }
 
 # Parse command line arguments
-ADD_COMMON_DRIVERS=false
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        -h|--help)
-            show_help
-            ;;
-        -a|--add-drivers)
-            ADD_COMMON_DRIVERS=true
-            shift
-            ;;
-        *)
-            log_error "Unknown option: $1"
-            show_help
-            ;;
-    esac
-done
-
-# Detect environment
-detect_environment
-
-# Configuration
-APP_NAME="shdemmo"
-APP_VERSION="1.0-SNAPSHOT"
-MAIN_CLASS="com.example.shelldemo.App"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-M2_HOME="$(find_maven_home)"
-
-# Colors for output
-if [ -t 1 ]; then
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
-    NC='\033[0m' # No Color
-else
-    RED=''
-    GREEN=''
-    YELLOW=''
-    NC=''
-fi
+parse_args() {
+    temp_args=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --app-name) APP_NAME="$2"; shift 2;;
+            --app-version) APP_VERSION="$2"; shift 2;;
+            --main-class) MAIN_CLASS="$2"; shift 2;;
+            --bundle-name) BUNDLE_NAME="$2"; shift 2;;
+            --template-dir) TEMPLATE_DIR="$2"; shift 2;;
+            --output-dir) OUTPUT_DIR="$2"; shift 2;;
+            --drivers-file) DRIVERS_FILE="$2"; shift 2;;
+            --artifact) ARTIFACT="$2"; shift 2;;
+            -a|--add-drivers) ADD_COMMON_DRIVERS=true; shift;;
+            -h|--help) show_help;;
+            *) temp_args+=("$1"); shift;;
+        esac
+    done
+    set -- "${temp_args[@]}"
+}
 
 # Cross-platform compatible file operations
 copy_file() {
@@ -164,7 +172,7 @@ download_common_drivers() {
     if [ ! -f "$drivers_file" ]; then
         log_error "drivers.properties not found at $drivers_file"
         return 1
-    }
+    fi
     
     # Read and process drivers.properties
     while IFS='=' read -r key value || [ -n "$key" ]; do
@@ -198,141 +206,176 @@ create_bundle_structure() {
     log_info "Created bundle structure in $BUNDLE_DIR"
 }
 
-# Main execution starts here
-log_info "Starting bundle creation on $(uname -s)"
 
-# Ensure we're in the project root directory
-if [ ! -f "pom.xml" ]; then
-    log_error "Please run this script from the project root directory"
-    exit 1
-fi
-
-# Build the application only if SKIP_MVN_BUILD is not set
-if [ -z "$SKIP_MVN_BUILD" ]; then
-    log_info "Building application..."
-    mvn clean package
-else
-    log_info "Skipping Maven build as SKIP_MVN_BUILD is set"
-fi
-
-# Run dependency check to get required modules
-echo "Analyzing required Java modules..."
-# ./dependency-check.sh
-# REQUIRED_MODULES=$(cat dependency-analysis/java-modules.txt | tr '\n' ',' | sed 's/,$//')
-
-REQUIRED_MODULES="java.base,java.logging,java.sql,java.desktop,java.naming,java.management,java.xml,jdk.unsupported,java.security.jgss,java.security.sasl,jdk.crypto.ec,java.transaction.xa"
-
-# Create bundle directory structure
-log_info "Creating bundle directory structure..."
-rm -rf "$BUNDLE_NAME"
-create_bundle_structure "$BUNDLE_NAME"
-
-# Download common drivers if requested
-if [ "$ADD_COMMON_DRIVERS" = true ]; then
-    log_info "Downloading common JDBC drivers..."
-    download_common_drivers "$BUNDLE_NAME"
-fi
-
-# Create custom JRE (only for Linux)
-if [ "$IS_WINDOWS" = false ]; then
-    log_info "Creating custom JRE with modules: $REQUIRED_MODULES"
-    jlink \
-        --add-modules "$REQUIRED_MODULES" \
-        --strip-debug \
-        --no-man-pages \
-        --no-header-files \
-        --compress=2 \
-        --output "$BUNDLE_NAME/runtime"
-fi
-
-# Copy application files
-log_info "Copying application files..."
-cp "target/${APP_NAME}-${APP_VERSION}.jar" "$BUNDLE_NAME/app/"
-
-# Copy Oracle JDBC driver
-log_info "Copying Oracle JDBC driver..."
-# Try to find the Oracle driver in different possible locations
-ORACLE_DRIVER_FOUND=false
-
-# Check in target/dependency directory
-if [ -f "target/dependency/ojdbc11.jar" ]; then
-    log_info "Found Oracle driver in target/dependency"
-    cp "target/dependency/ojdbc11.jar" "$BUNDLE_NAME/app/"
-    ORACLE_DRIVER_FOUND=true
-fi
-
-# If not found, try to download it using Maven
-if [ "$ORACLE_DRIVER_FOUND" = false ]; then
-    log_info "Oracle driver not found in target/dependency, attempting to download..."
-    mvn dependency:copy -Dartifact=com.oracle.database.jdbc:ojdbc11:23.7.0.25.01 -DoutputDirectory=target/dependency
-    if [ -f "target/dependency/ojdbc11.jar" ]; then
-        log_info "Successfully downloaded Oracle driver"
-        cp "target/dependency/ojdbc11.jar" "$BUNDLE_NAME/app/"
-        ORACLE_DRIVER_FOUND=true
+# Auto-detect from pom.xml if not provided
+auto_detect_from_pom() {
+    if [ -z "$APP_NAME" ] || [ -z "$APP_VERSION" ] || [ -z "$MAIN_CLASS" ]; then
+        if [ -f pom.xml ]; then
+            [ -z "$APP_NAME" ] && APP_NAME=$(xmllint --xpath 'string(//project/artifactId)' pom.xml 2>/dev/null || echo "app")
+            [ -z "$APP_VERSION" ] && APP_VERSION=$(xmllint --xpath 'string(//project/version)' pom.xml 2>/dev/null || echo "1.0-SNAPSHOT")
+            [ -z "$MAIN_CLASS" ] && MAIN_CLASS=$(xmllint --xpath 'string(//mainClass|//project/properties/mainClass)' pom.xml 2>/dev/null || echo "Main")
+        fi
     fi
-fi
+}
 
-# If still not found, try to find it in the local Maven repository
-if [ "$ORACLE_DRIVER_FOUND" = false ]; then
-    log_info "Oracle driver not found in target/dependency, checking local Maven repository..."
-    ORACLE_JAR=$(find ~/.m2/repository -name "ojdbc11-*.jar" | head -n 1)
-    if [ -n "$ORACLE_JAR" ]; then
-        log_info "Found Oracle driver in Maven repository: $ORACLE_JAR"
-        cp "$ORACLE_JAR" "$BUNDLE_NAME/app/ojdbc11.jar"
-        ORACLE_DRIVER_FOUND=true
+# Set bundle name if not provided
+set_bundle_name() {
+    if [ -z "$BUNDLE_NAME" ]; then
+        if [ "$IS_WINDOWS" = true ]; then
+            BUNDLE_NAME="${APP_NAME}-bundle-windows"
+        else
+            BUNDLE_NAME="${APP_NAME}-bundle-linux"
+        fi
     fi
-fi
+}
 
-if [ "$ORACLE_DRIVER_FOUND" = false ]; then
-    log_error "Error: Could not find Oracle JDBC driver. Please ensure it is available in your Maven repository."
-    exit 1
-fi
+# Set artifact if not provided (try to find JAR/WAR in target/build/libs)
+auto_detect_artifact() {
+    if [ -z "$ARTIFACT" ]; then
+        if [ -f "target/${APP_NAME}-${APP_VERSION}.jar" ]; then
+            ARTIFACT="target/${APP_NAME}-${APP_VERSION}.jar"
+        elif [ -f "build/libs/${APP_NAME}-${APP_VERSION}.jar" ]; then
+            ARTIFACT="build/libs/${APP_NAME}-${APP_VERSION}.jar"
+        else
+            ARTIFACT=$(find target build/libs -name "*.jar" | head -n 1)
+        fi
+    fi
+}
 
-# Verify the driver was copied
-if [ -f "$BUNDLE_NAME/app/ojdbc11.jar" ]; then
-    log_info "Successfully copied Oracle driver to bundle: $BUNDLE_NAME/app/ojdbc11.jar"
-else
-    log_error "Error: Oracle driver was not copied to bundle"
-    exit 1
-fi
+# Check required files
+check_required_files() {
+    test -f "$ARTIFACT" || { log_error "Artifact not found: $ARTIFACT"; exit 1; }
+    test -d "$TEMPLATE_DIR" || { log_error "Template dir not found: $TEMPLATE_DIR"; exit 1; }
+}
 
-# Process and copy launcher script
-if [ "$IS_WINDOWS" = true ]; then
-    log_info "Creating Windows launcher..."
-    cp "create-distribution/run.bat.template" "$BUNDLE_NAME/run.bat"
-else
-    log_info "Creating Linux launcher..."
-    sed -e "s|target/shdemmo-1.0-SNAPSHOT.jar|app/shdemmo-1.0-SNAPSHOT.jar|g" \
-        -e "s|SCRIPT_FILE=\$1|# Handle arguments after --\n    while [ \$# -gt 0 ]; do\n        if [ \"\$1\" = \"--\" ]; then\n            shift\n            break\n        fi\n        shift\n    done\n    # Remaining arguments are for the Java application\n    SCRIPT_FILE=\$1|g" \
-        -e "s|exec \"\$JAVA\"|\"\$JAVA\" -Djava.util.logging.config.file=/dev/null -Dlogback.configurationFile=/dev/null -Doracle.jdbc.Trace=false -jar|g" \
-        "create-distribution/run.sh.template" > "$BUNDLE_NAME/run.sh"
-    chmod +x "$BUNDLE_NAME/run.sh"
-fi
+# Download drivers if requested
+download_drivers_if_requested() {
+    if [ "$ADD_COMMON_DRIVERS" = true ]; then
+        if [ -f "$OLDPWD/$DRIVERS_FILE" ]; then
+            while IFS='=' read -r key value; do
+                [[ $key =~ ^#.*$ ]] && continue
+                [ -z "$key" ] && continue
+                db_type="${key%%.driver}"
+                target_dir="$BUNDLE_NAME/drivers/$db_type"
+                mkdir -p "$target_dir"
+                mvn dependency:copy -Dartifact="$value" -DoutputDirectory="$target_dir" || log_warn "Failed to download $db_type driver"
+            done < "$OLDPWD/$DRIVERS_FILE"
+        else
+            log_warn "Drivers file not found: $DRIVERS_FILE"
+        fi
+    fi
+}
 
-# Create README for the bundle
-echo "Creating bundle README..."
-sed -e "s/\${APPLICATION_NAME}/${APP_NAME}/g" \
-    -e "s/\${BUNDLE_NAME}/${BUNDLE_NAME}/g" \
-    "create-distribution/README.md.template" > "$BUNDLE_NAME/README.md"
+# (Optional) Create custom JRE if jlink is available
+create_custom_jre() {
+    if command -v jlink >/dev/null 2>&1; then
+        log_info "Creating custom JRE"
+        # Remove existing runtime directory if it exists
+        [ -d "$BUNDLE_NAME/runtime" ] && rm -rf "$BUNDLE_NAME/runtime"
+        # You may want to add logic to detect required modules or accept as argument
+        # For now, just create a minimal JRE
+        jlink --add-modules java.base,java.logging,java.xml,java.management,java.naming,jdk.unsupported,java.sql,java.desktop \
+         --output "$BUNDLE_NAME/runtime" \
+          --strip-debug --no-man-pages --no-header-files --compress zip-2 || log_warn "jlink failed"
+    fi
+}
+
+
+
+create_bundle_readme() {
+    echo "Creating bundle README..."
+    sed -e "s/\${APPLICATION_NAME}/${APP_NAME}/g" \
+        -e "s/\${BUNDLE_NAME}/${BUNDLE_NAME}/g" \
+        "$PROJECT_ROOT/create-distribution/templates/README.md.template" > "$BUNDLE_NAME/README.md"
+}
 
 # Create archive for Windows
-if [ "$IS_WINDOWS" = true ]; then
-    log_info "Creating Windows bundle archive..."
-    if command -v 7z >/dev/null 2>&1; then
-        7z a -tzip "${BUNDLE_NAME}.zip" "$BUNDLE_NAME"
+create_bundle_archive() {
+    if [ "$IS_WINDOWS" = true ]; then
+        log_info "Creating Windows bundle archive..."
+        if command -v 7z >/dev/null 2>&1; then
+            7z a -tzip "${BUNDLE_NAME}.zip" "$BUNDLE_NAME"
+        else
+            log_warn "7z not found, using zip instead"
+            zip -qr "${BUNDLE_NAME}.zip" "$BUNDLE_NAME"
+        fi
+        log_info "Windows bundle created: ${BUNDLE_NAME}.zip"
     else
-        log_warn "7z not found, using zip instead"
-        zip -r "${BUNDLE_NAME}.zip" "$BUNDLE_NAME"
+        log_info "Creating Linux bundle created in directory: $BUNDLE_NAME"
+        if command -v zip >/dev/null 2>&1; then
+            zip -qr "${BUNDLE_NAME}.zip" "$BUNDLE_NAME"
+            log_info "Linux bundle archive created: ${BUNDLE_NAME}.zip"
+        else
+            log_warn "zip not found, skipping archive creation"
+        fi
     fi
-    log_info "Windows bundle created: ${BUNDLE_NAME}.zip"
-else
-    log_info "Linux bundle created in directory: $BUNDLE_NAME"
-fi
+}
 
-log_info "Bundle creation completed successfully!"
-echo "You can find the bundle in: ${BUNDLE_NAME}.zip"
-echo "To use the application:"
-echo "1. Extract the archive: unzip ${BUNDLE_NAME}.zip"
-echo "2. Run the application:"
-echo "   - On Linux/macOS: ./${BUNDLE_NAME}/run.sh"
-echo "   - On Windows: ${BUNDLE_NAME}\\run.bat" 
+print_final_instructions() {
+    log_info "Bundle creation completed successfully!"
+    echo "You can find the bundle in: ${BUNDLE_NAME}.zip"
+    echo "To use the application:"
+    echo "1. Extract the archive: unzip ${BUNDLE_NAME}.zip"
+    echo "2. Run the application:"
+    echo "   - On Linux/macOS: ./${BUNDLE_NAME}/run.sh"
+    echo "   - On Windows: ${BUNDLE_NAME}\\run.bat"
+}
+
+copy_uber_jar_to_bundle() {
+    copy_file "$PROJECT_ROOT/app/target/dbscriptrunner-1.0-SNAPSHOT.jar" "$BUNDLE_NAME/app/"
+}
+
+copy_bundle_templates() {
+    copy_file "$SCRIPT_DIR/templates/run.sh.template" "$BUNDLE_NAME/run.sh"
+    copy_file "$SCRIPT_DIR/templates/run.bat.template" "$BUNDLE_NAME/run.bat"
+    make_executable "$BUNDLE_NAME/run.sh"
+}
+
+copy_sample_sql_scripts() {
+    local src_dir="$PROJECT_ROOT/app/src/test/resources/sql"
+    local dest_dir="$BUNDLE_NAME/resources/sql"
+    if [ -d "$src_dir" ]; then
+        mkdir -p "$dest_dir"
+        cp -r "$src_dir/"* "$dest_dir/"
+        log_info "Copied sample SQL scripts to $dest_dir"
+    else
+        log_warn "No sample SQL scripts found at $src_dir"
+    fi
+}
+
+clean_previous_bundle() {
+    if [ -d "$BUNDLE_NAME" ]; then
+        log_info "Removing existing bundle directory: $BUNDLE_NAME"
+        rm -rf "$BUNDLE_NAME"
+    fi
+    if [ -f "${BUNDLE_NAME}.zip" ]; then
+        log_info "Removing existing bundle archive: ${BUNDLE_NAME}.zip"
+        rm -f "${BUNDLE_NAME}.zip"
+    fi
+}
+
+# Main execution flow
+main() {
+    detect_environment
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    M2_HOME="$(find_maven_home)"
+    PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+    parse_args "$@"
+    auto_detect_from_pom
+    set_bundle_name
+    clean_previous_bundle
+    auto_detect_artifact
+    check_required_files
+    create_bundle_structure "$BUNDLE_NAME"
+    copy_sample_sql_scripts
+    copy_uber_jar_to_bundle
+    copy_bundle_templates
+    download_drivers_if_requested
+    create_custom_jre
+    create_bundle_readme
+    create_bundle_archive
+    print_final_instructions
+}
+
+main "$@"
+

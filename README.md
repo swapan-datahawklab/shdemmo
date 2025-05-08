@@ -6,11 +6,11 @@
 flowchart TD
     subgraph Source [Source Code Structure]
         SRC[src/]
-        
+
         subgraph Main [Main]
             MAIN[src/main/]
             JAVA[src/main/java/]
-            
+
             subgraph Java [Java Source]
                 COM[com/]
                 EXAMPLE[example/]
@@ -20,11 +20,11 @@ flowchart TD
                 SERVICES[services/]
             end
         end
-        
+
         subgraph Test [Test]
             TEST[src/test/]
             TESTJAVA[src/test/java/]
-            
+
             subgraph TestJava [Test Source]
                 TESTCOM[com/]
                 TESTEXAMPLE[example/]
@@ -34,7 +34,7 @@ flowchart TD
                 TESTSERVICES[services/]
             end
         end
-        
+
         SRC --> MAIN
         SRC --> TEST
         MAIN --> JAVA
@@ -225,6 +225,10 @@ mvn test -Dtest=SqlScriptParserTest#testParseMixedSqlAndPlsql -DforkCount=0
 Run multiple test classes:
 
 ```bash
+
+mvn test -Dtest=com.example.shelldemo.parser.UnifiedDatabaseRunnerTest -DforkCount=0
+
+
 mvn test -Dtest=SqlScriptParserTest,DatabaseConfigTest -DforkCount=0
 ```
 
@@ -243,6 +247,7 @@ mvn test -Dtest=*Parser*Test -DforkCount=0
 #### Test Output
 
 View test results in the following locations:
+
 - Console output during test execution
 - Surefire reports: `app/target/surefire-reports/`
 - Test logs: `app/logs/test/` (if configured)
@@ -1070,7 +1075,7 @@ ConfigurationHolder (Global Configuration)
 UnifiedDatabaseRunner (CLI/Entry point)
     │   [1. User provides --driver-path argument]
     │
-    ├─> UnifiedDatabaseOperation 
+    ├─> UnifiedDatabaseOperation
     │      │   [2. loadDriverFromPath loads JAR]
     │      │   [3. Creates URLClassLoader]
     │      │   [4. Uses ServiceLoader to find drivers]
@@ -1107,10 +1112,10 @@ Code Flow:
        File driverFile = new File(path);
        URL driverUrl = driverFile.toURI().toURL();
        URLClassLoader loader = new URLClassLoader(
-           new URL[]{driverUrl}, 
+           new URL[]{driverUrl},
            getClass().getClassLoader()
        );
-       
+
        // Find and register drivers
        ServiceLoader<Driver> drivers = ServiceLoader.load(Driver.class, loader);
        for (Driver driver : drivers) {
@@ -1124,11 +1129,11 @@ Code Flow:
 ```java
    public class CustomDriver implements Driver {
        private final Driver delegate;
-       
+
        public CustomDriver(Driver delegate) {
            this.delegate = delegate;
        }
-       
+
        @Override
        public Connection connect(String url, Properties info) throws SQLException {
            return delegate.connect(url, info);
@@ -1156,29 +1161,29 @@ graph TD;
 
     B --> C[DatabaseConnectionFactory<br/>Connection Management]
     CH -.->|used by| C
-    
+
     C --> D[CustomDriver<br/>JDBC Driver Wrapper]
     C --> E[ConnectionConfig<br/>Connection Settings]
-    
+
     B --> F[DatabaserOperationValidator<br/>SQL/PL-SQL Validation]
     F --> |uses| C
-    
+
     B --> G[Parser Components]
     G --> H[SqlScriptParser<br/>SQL Script Parsing]
     G --> I[StoredProcedure Components]
-    
+
     I --> J[StoredProcedureParser]
     I --> K[StoredProcedureValidator]
     I --> L[StoredProcedureInfo]
     I --> M[ProcedureParam]
-    
+
     B --> N[Error Handling]
     N --> O[DatabaseErrorFormatter]
     N --> P[Exception Hierarchy]
-    
 
-    
-    
+
+
+
     class CH config
     class A,B main
     class C,D,E,F,G,H,I,J,K,L,M,N,O,P component
@@ -1193,19 +1198,19 @@ graph TD
     subgraph CLI
         A[UnifiedDatabaseRunner<br/>CLI/Entry point]
     end
-    
+
     subgraph Operations
         B[UnifiedDatabaseOperation]
-        
+
         subgraph Driver Management
             D[CustomDriver<br/>JDBC Driver Wrapper]
         end
-        
+
         subgraph Connection
             C[DatabaseConnectionFactory]
         end
     end
-    
+
     CH -->|configures| A
     A -->|executes| B
     B -->|creates| D
@@ -1235,11 +1240,11 @@ public class SqlScriptExecutor {
 
     public void executeScript(Connection conn, String scriptPath) throws SQLException, IOException {
         List<String> statements = SqlScriptParser.parse(new File(scriptPath));
-        
+
         for (String sql : statements) {
             String trimmedSql = sql.trim().toUpperCase();
             SqlExecutor executor = determineExecutor(trimmedSql);
-            
+
             executeSqlStatement(conn, sql, executor);
         }
     }
@@ -1249,8 +1254,8 @@ public class SqlScriptExecutor {
     }
 
     private boolean isPLSQL(String sql) {
-        return sql.startsWith("BEGIN") || 
-               sql.startsWith("DECLARE") || 
+        return sql.startsWith("BEGIN") ||
+               sql.startsWith("DECLARE") ||
                sql.startsWith("CREATE") ||
                sql.contains("END;") ||
                sql.contains("PROCEDURE") ||
@@ -1258,7 +1263,7 @@ public class SqlScriptExecutor {
                sql.contains("PACKAGE");
     }
 
-    private void executeSqlStatement(Connection conn, String sql, SqlExecutor executor) 
+    private void executeSqlStatement(Connection conn, String sql, SqlExecutor executor)
             throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             try {
@@ -1267,7 +1272,7 @@ public class SqlScriptExecutor {
             } catch (SQLException e) {
                 logger.error("Failed to execute SQL: {}", sql);
                 throw new DatabaseOperationException(
-                    String.format("Failed to execute SQL statement: %s", e.getMessage()), 
+                    String.format("Failed to execute SQL statement: %s", e.getMessage()),
                     e
                 );
             }
@@ -1283,23 +1288,23 @@ public class SqlScriptExecutor {
     }
 
     // Enhanced version with batch support and transaction management
-    public void executeScriptWithTransaction(Connection conn, String scriptPath) 
+    public void executeScriptWithTransaction(Connection conn, String scriptPath)
             throws SQLException, IOException {
         boolean originalAutoCommit = conn.getAutoCommit();
         conn.setAutoCommit(false);
-        
+
         try {
             List<String> statements = SqlScriptParser.parse(new File(scriptPath));
             Map<Boolean, List<String>> groupedStatements = groupStatements(statements);
-            
+
             // Execute PL/SQL blocks first (they can't be batched)
             for (String plsql : groupedStatements.get(true)) {
                 executeSqlStatement(conn, plsql, PLSQL_EXECUTOR);
             }
-            
+
             // Batch execute regular SQL statements
             executeBatch(conn, groupedStatements.get(false));
-            
+
             conn.commit();
             logger.info("Script execution completed successfully");
         } catch (Exception e) {
@@ -1319,7 +1324,7 @@ public class SqlScriptExecutor {
             ));
     }
 
-    private void executeBatch(Connection conn, List<String> sqlStatements) 
+    private void executeBatch(Connection conn, List<String> sqlStatements)
             throws SQLException {
         if (sqlStatements == null || sqlStatements.isEmpty()) {
             return;
@@ -1338,15 +1343,15 @@ public class SqlScriptExecutor {
         int totalAffected = Arrays.stream(results)
             .filter(r -> r != Statement.SUCCESS_NO_INFO)
             .sum();
-        
+
         logger.info("Batch execution completed. Total rows affected: {}", totalAffected);
     }
 
     // Optional: Add validation before execution
-    public void validateScript(Connection conn, String scriptPath) 
+    public void validateScript(Connection conn, String scriptPath)
             throws SQLException, IOException {
         List<String> statements = SqlScriptParser.parse(new File(scriptPath));
-        
+
         for (String sql : statements) {
             String trimmedSql = sql.trim().toUpperCase();
             if (isPLSQL(trimmedSql)) {
@@ -1360,12 +1365,12 @@ public class SqlScriptExecutor {
     private void validatePLSQL(Connection conn, String plsql) throws SQLException {
         // Implementation depends on database type
         // Example for Oracle:
-        String validateQuery = 
+        String validateQuery =
             "BEGIN " +
             "    DBMS_UTILITY.COMPILE_SCHEMA(USER, FALSE);" +
             "    " + plsql + " " +
             "END;";
-            
+
         try (Statement stmt = conn.createStatement()) {
             stmt.execute(validateQuery);
         }
@@ -1375,7 +1380,7 @@ public class SqlScriptExecutor {
         // Implementation depends on database type
         // Example for Oracle:
         String validateQuery = "EXPLAIN PLAN FOR " + sql;
-        
+
         try (Statement stmt = conn.createStatement()) {
             stmt.execute(validateQuery);
         }
@@ -1387,7 +1392,7 @@ try (Connection conn = dataSource.getConnection()) {
 
     // Optional: Validate before execution
     executor.validateScript(conn, "path/to/script.sql");
-    
+
     // Execute with transaction support
     executor.executeScriptWithTransaction(conn, "path/to/script.sql");
 }
@@ -1429,3 +1434,55 @@ UnifiedDatabaseRunner (CLI/Entry point)
                        └─> ConfigurationException
 
 ```
+
+```java
+ConfigurationHolder config = ConfigurationHolder.getInstance();
+
+// Get database configuration
+String jdbcTemplate = config.getJdbcClientTemplate("oracle", "thin");
+// Returns: "jdbc:oracle:thin:@//%s:%d/%s"
+
+int oraclePort = config.getDefaultPort("oracle");
+
+```
+
+
+
+```java
+ConnectionConfig config = ConnectionConfig.builder()
+    .host("localhost")
+    .port(1521)
+    .dbType("oracle")
+    // ... other settings
+    .build();
+Connection conn = factory.createConnection(config);
+
+// Using lambda builder
+Connection conn = factory.createConnection(builder ->
+    builder.host("localhost")
+           .port(1521)
+           .dbType("oracle")
+           // ... other settings
+);
+
+// With custom driver
+Connection conn = factory.createConnection("/path/to/driver.jar", config);
+```
+
+
+```java
+try (ConsoleStreamer streamer = new ConsoleStreamer()) {
+    executeQueryWithStreaming("SELECT * FROM users", streamer, 1000);
+}
+
+// Stream to CSV
+try (CsvStreamer streamer = new CsvStreamer("output.csv")) {
+    executeQueryWithStreaming("SELECT * FROM users", streamer, 1000);
+}
+
+// Stream to JSON
+try (FileOutputStream out = new FileOutputStream("output.json");
+     JsonStreamer streamer = new JsonStreamer(out)) {
+    executeQueryWithStreaming("SELECT * FROM users", streamer, 1000);
+}
+    ```

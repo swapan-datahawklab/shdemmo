@@ -5,6 +5,10 @@ set -eu
 
 # Get the directory where the script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BUNDLE_DIR="$SCRIPT_DIR"
+APP_JAR="$BUNDLE_DIR/app/dbscriptrunner-1.0-SNAPSHOT.jar"
+LOG_CONFIG="$BUNDLE_DIR/log4j2.xml"
+DRIVERS_DIR="$BUNDLE_DIR/drivers"
 
 # Default values
 DB_TYPE="oracle"
@@ -24,24 +28,8 @@ SCRIPT_FILE=""
 
 # Function to show usage
 usage() {
-    echo "Usage: $0 [database options] <script_file>"
-    echo "Database options:"
-    echo "  -t, --type <type>        Database type (oracle, sqlserver, postgresql, mysql)"
-    echo "  -H, --host <host>        Database host"
-    echo "  -P, --port <port>        Database port"
-    echo "  -u, --username <user>    Database username"
-    echo "  -p, --password <pass>    Database password"
-    echo "  -d, --database <db>      Database name"
-    echo "  --stop-on-error <bool>   Stop execution on error (default: true)"
-    echo "  --auto-commit <bool>     Auto-commit mode (default: false)"
-    echo "  --print-statements <bool> Print SQL statements (default: false)"
-    echo "  --function              Execute as function"
-    echo "  --return-type <type>    Return type for functions (default: NUMERIC)"
-    echo "  -i, --input <params>    Input parameters (name:type:value,...)"
-    echo "  -o, --output <params>   Output parameters (name:type,...)"
-    echo "  --io <params>           Input/Output parameters (name:type:value,...)"
-    echo "  --driver-path <path>    Path to JDBC driver JAR file"
-    echo "  --csv-output <file>     Output file for CSV format"
+    echo "Usage: $0 [options] <script_file|procedure>"
+    echo "Run with --help for all available options."
     exit 1
 }
 
@@ -112,6 +100,21 @@ while [[ $# -gt 0 ]]; do
             CSV_OUTPUT="$2"
             shift 2
             ;;
+        --pre-flight)
+            PRE_FLIGHT="true"
+            shift
+            ;;
+        --validate-script)
+            VALIDATE_SCRIPT="true"
+            shift
+            ;;
+        --transactional)
+            TRANSACTIONAL="true"
+            shift
+            ;;
+        -h|--help)
+            usage
+            ;;
         --)
             shift
             break
@@ -134,61 +137,23 @@ if [ -z "$SCRIPT_FILE" ]; then
     usage
 fi
 
-# Build the command
-CMD=("$SCRIPT_DIR/runtime/bin/java")
-CMD+=("-cp" "$SCRIPT_DIR/app/ojdbc11.jar:$SCRIPT_DIR/app/shdemmo-1.0-SNAPSHOT.jar")
-CMD+=("-Djava.util.logging.config.file=/dev/null")
-CMD+=("-Dlogback.configurationFile=/dev/null")
-CMD+=("-Doracle.jdbc.Trace=false")
-CMD+=("-jar" "$SCRIPT_DIR/app/shdemmo-1.0-SNAPSHOT.jar")
-CMD+=("-t" "$DB_TYPE")
-CMD+=("-H" "$DB_HOST")
-CMD+=("-P" "$DB_PORT")
-CMD+=("-u" "$DB_USER")
-CMD+=("-p" "$DB_PASS")
+# Find a default driver jar if not provided
+DEFAULT_DRIVER_JAR=$(find "$DRIVERS_DIR" -name '*.jar' | head -n 1)
 
-# Handle Oracle connection string format
-if [ "$DB_TYPE" = "oracle" ]; then
-    CMD+=("-d" "jdbc:oracle:thin:@$DB_HOST:$DB_PORT/$DB_NAME")
+# Check if --driver-path is present in args
+DRIVER_PATH_PRESENT=false
+for arg in "$@"; do
+    if [[ "$arg" == "--driver-path" ]]; then
+        DRIVER_PATH_PRESENT=true
+        break
+    fi
+done
+
+JAVA_OPTS="-Dlog4j.configurationFile=$LOG_CONFIG"
+
+# If --driver-path is not present and a default exists, add it
+if [ "$DRIVER_PATH_PRESENT" = false ] && [ -n "$DEFAULT_DRIVER_JAR" ]; then
+    exec java $JAVA_OPTS -jar "$APP_JAR" "$@" --driver-path "$DEFAULT_DRIVER_JAR"
 else
-    CMD+=("-d" "$DB_NAME")
-fi
-
-CMD+=("--stop-on-error" "$STOP_ON_ERROR")
-CMD+=("--auto-commit" "$AUTO_COMMIT")
-CMD+=("--print-statements" "$PRINT_STATEMENTS")
-
-# Add optional parameters if provided
-if [ "$IS_FUNCTION" = "true" ]; then
-    CMD+=("--function")
-fi
-
-if [ -n "$RETURN_TYPE" ]; then
-    CMD+=("--return-type" "$RETURN_TYPE")
-fi
-
-if [ -n "$INPUT_PARAMS" ]; then
-    CMD+=("-i" "$INPUT_PARAMS")
-fi
-
-if [ -n "$OUTPUT_PARAMS" ]; then
-    CMD+=("-o" "$OUTPUT_PARAMS")
-fi
-
-if [ -n "$IO_PARAMS" ]; then
-    CMD+=("--io" "$IO_PARAMS")
-fi
-
-if [ -n "$DRIVER_PATH" ]; then
-    CMD+=("--driver-path" "$DRIVER_PATH")
-fi
-
-if [ -n "$CSV_OUTPUT" ]; then
-    CMD+=("--csv-output" "$CSV_OUTPUT")
-fi
-
-# Add the script file or stored procedure name
-CMD+=("$SCRIPT_FILE")
-
-# Execute the command
-exec "${CMD[@]}" 
+    exec java $JAVA_OPTS -jar "$APP_JAR" "$@"
+fi 

@@ -1,257 +1,39 @@
 @echo off
 setlocal enabledelayedexpansion
 
-REM Default values
-set DB_TYPE=oracle
-set DB_HOST=localhost
-set DB_PORT=1521
-set DB_USER=hr
-set DB_PASS=hr
-set DB_NAME=freepdb1
-set STOP_ON_ERROR=true
-set AUTO_COMMIT=false
-set PRINT_STATEMENTS=false
-set IS_FUNCTION=false
-set RETURN_TYPE=NUMERIC
-set DRIVER_PATH=
-set CSV_OUTPUT=
-set SCRIPT_FILE=
+REM Get the directory where the script is located
+set SCRIPT_DIR=%~dp0
+set BUNDLE_DIR=%SCRIPT_DIR%
+set APP_JAR=%BUNDLE_DIR%app\dbscriptrunner-1.0-SNAPSHOT.jar
+set LOG_CONFIG=%BUNDLE_DIR%log4j2.xml
+set DRIVERS_DIR=%BUNDLE_DIR%drivers
 
-REM Parse command line arguments
-:parse_args
-if "%~1"=="" goto :end_parse
-if "%~1"=="-t" (
-    set DB_TYPE=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="--type" (
-    set DB_TYPE=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="-H" (
-    set DB_HOST=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="--host" (
-    set DB_HOST=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="-P" (
-    set DB_PORT=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="--port" (
-    set DB_PORT=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="-u" (
-    set DB_USER=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="--username" (
-    set DB_USER=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="-p" (
-    set DB_PASS=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="--password" (
-    set DB_PASS=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="-d" (
-    set DB_NAME=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="--database" (
-    set DB_NAME=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="--stop-on-error" (
-    set STOP_ON_ERROR=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="--auto-commit" (
-    set AUTO_COMMIT=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="--print-statements" (
-    set PRINT_STATEMENTS=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="--function" (
-    set IS_FUNCTION=true
-    shift
-    goto :parse_args
-)
-if "%~1"=="--return-type" (
-    set RETURN_TYPE=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="-i" (
-    set INPUT_PARAMS=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="--input" (
-    set INPUT_PARAMS=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="-o" (
-    set OUTPUT_PARAMS=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="--output" (
-    set OUTPUT_PARAMS=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="--io" (
-    set IO_PARAMS=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="--driver-path" (
-    set DRIVER_PATH=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="--csv-output" (
-    set CSV_OUTPUT=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if "%~1"=="--" (
-    shift
-    goto :end_parse
-)
-if "%~1"=="" goto :end_parse
-if not "%~1"=="-*" (
-    set SCRIPT_FILE=%~1
-    shift
-    goto :parse_args
-)
-echo Error: Unknown option %~1
-echo Usage: %~nx0 [database options] ^<script_file^>
-echo Database options:
-echo   -t, --type ^<type^>        Database type (oracle, sqlserver, postgresql, mysql)
-echo   -H, --host ^<host^>        Database host
-echo   -P, --port ^<port^>        Database port
-echo   -u, --username ^<user^>    Database username
-echo   -p, --password ^<pass^>    Database password
-echo   -d, --database ^<db^>      Database name
-echo   --stop-on-error ^<bool^>   Stop execution on error (default: true)
-echo   --auto-commit ^<bool^>     Auto-commit mode (default: false)
-echo   --print-statements ^<bool^> Print SQL statements (default: false)
-echo   --function              Execute as function
-echo   --return-type ^<type^>    Return type for functions (default: NUMERIC)
-echo   -i, --input ^<params^>    Input parameters (name:type:value,...)
-echo   -o, --output ^<params^>   Output parameters (name:type,...)
-echo   --io ^<params^>           Input/Output parameters (name:type:value,...)
-echo   --driver-path ^<path^>    Path to JDBC driver JAR file
-echo   --csv-output ^<file^>     Output file for CSV format
-exit /b 1
-
-:end_parse
-
-REM Check if script file is provided
-if "%SCRIPT_FILE%"=="" (
-    echo Error: SQL script file or stored procedure name is required
+REM Function to show usage
+:usage
+    echo Usage: %~nx0 [options] ^<script_file^|procedure^>
+    echo Run with --help for all available options.
     exit /b 1
+
+REM Find a default driver jar if not provided
+set DEFAULT_DRIVER_JAR=
+for %%F in (%DRIVERS_DIR%\*.jar) do (
+    set DEFAULT_DRIVER_JAR=%%F
+    goto :found_driver
+)
+:found_driver
+
+REM Check if --driver-path is present in args
+set DRIVER_PATH_PRESENT=false
+for %%A in (%*) do (
+    if "%%A"=="--driver-path" set DRIVER_PATH_PRESENT=true
 )
 
-REM Build the command
-set CMD="%~dp0runtime\bin\java" -cp "%~dp0app\ojdbc11.jar;%~dp0app\shdemmo-1.0-SNAPSHOT.jar" -Djava.util.logging.config.file=NUL -Dlogback.configurationFile=NUL -Doracle.jdbc.Trace=false -jar "%~dp0app\shdemmo-1.0-SNAPSHOT.jar"
-set CMD=%CMD% -t %DB_TYPE%
-set CMD=%CMD% -H %DB_HOST%
-set CMD=%CMD% -P %DB_PORT%
-set CMD=%CMD% -u %DB_USER%
-set CMD=%CMD% -p %DB_PASS%
+set JAVA_OPTS=-Dlog4j.configurationFile=%LOG_CONFIG%
 
-REM Handle Oracle connection string format
-if "%DB_TYPE%"=="oracle" (
-    set CMD=%CMD% -d "jdbc:oracle:thin:@%DB_HOST%:%DB_PORT%/%DB_NAME%"
+REM If --driver-path is not present and a default exists, add it
+if "%DRIVER_PATH_PRESENT%"=="false" if defined DEFAULT_DRIVER_JAR (
+    %SCRIPT_DIR%runtime\bin\java %JAVA_OPTS% -jar "%APP_JAR%" %* --driver-path "%DEFAULT_DRIVER_JAR%"
 ) else (
-    set CMD=%CMD% -d %DB_NAME%
+    %SCRIPT_DIR%runtime\bin\java %JAVA_OPTS% -jar "%APP_JAR%" %*
 )
-
-set CMD=%CMD% --stop-on-error %STOP_ON_ERROR%
-set CMD=%CMD% --auto-commit %AUTO_COMMIT%
-set CMD=%CMD% --print-statements %PRINT_STATEMENTS%
-
-REM Add optional parameters if provided
-if "%IS_FUNCTION%"=="true" (
-    set CMD=%CMD% --function
-)
-
-if not "%RETURN_TYPE%"=="" (
-    set CMD=%CMD% --return-type %RETURN_TYPE%
-)
-
-if not "%INPUT_PARAMS%"=="" (
-    set CMD=%CMD% -i "%INPUT_PARAMS%"
-)
-
-if not "%OUTPUT_PARAMS%"=="" (
-    set CMD=%CMD% -o "%OUTPUT_PARAMS%"
-)
-
-if not "%IO_PARAMS%"=="" (
-    set CMD=%CMD% --io "%IO_PARAMS%"
-)
-
-if not "%DRIVER_PATH%"=="" (
-    set CMD=%CMD% --driver-path "%DRIVER_PATH%"
-)
-
-if not "%CSV_OUTPUT%"=="" (
-    set CMD=%CMD% --csv-output "%CSV_OUTPUT%"
-)
-
-REM Add the script file or stored procedure name
-set CMD=%CMD% "%SCRIPT_FILE%"
-
-REM Execute the command
-%CMD% 
+endlocal 

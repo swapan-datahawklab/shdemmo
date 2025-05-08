@@ -1,4 +1,7 @@
-SET search_path TO hr;
+--NOSONAR
+
+-- Set schema
+SELECT set_config('search_path', 'hr', false);
 
 -- Load Regions
 INSERT INTO regions VALUES (1, 'Europe');

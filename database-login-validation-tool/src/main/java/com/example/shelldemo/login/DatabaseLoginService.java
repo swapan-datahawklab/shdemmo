@@ -1,21 +1,20 @@
 package com.example.shelldemo.login;
 
-import com.example.shelldemo.login.exception.DatabaseConnectionException;
-import com.example.shelldemo.login.exception.DatabaseOperationException;
 import com.example.shelldemo.UnifiedDatabaseOperation;
-import com.example.shelldemo.connection.ConnectionConfig;
+import com.example.shelldemo.UnifiedDatabaseOperationBuilder;
+import com.example.shelldemo.exception.DatabaseException;
+
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.FileWriter;
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.DriverManager;
+
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
+
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -70,50 +69,21 @@ public class DatabaseLoginService {
     private DatabaseLoginServiceTestResult testDatabase() {
         long startTime = System.currentTimeMillis();
         
-        try {
-            // Run database test using UnifiedDatabaseOperation
-            ConnectionConfig config = new ConnectionConfig();
-            config.setHost("localhost");
-            config.setServiceName("test");
-            config.setUsername("test");
-            config.setPassword("test");
-            
-            try (UnifiedDatabaseOperation operation = UnifiedDatabaseOperation.create("oracle", config)) {
-                List<Map<String, Object>> results = operation.executeQuery(getTestQuery("oracle"));
-                long responseTime = System.currentTimeMillis() - startTime;
-                
-                return new DatabaseLoginServiceTestResult.Builder()
-                    .databaseName("test")
-                    .serviceName("test")
-                    .dbType("oracle")
-                    .success(!results.isEmpty())
-                    .responseTimeMs(responseTime)
-                    .build();
-            } catch (DatabaseOperationException | DatabaseConnectionException e) {
-                long responseTime = System.currentTimeMillis() - startTime;
-                logger.error("Error testing database: {}", e.getMessage());
-                
-                return new DatabaseLoginServiceTestResult.Builder()
-                    .databaseName("test")
-                    .serviceName("test")
-                    .dbType("oracle")
-                    .success(false)
-                    .responseTimeMs(responseTime)
-                    .error(e.getMessage(), e.getCause() instanceof SQLException sqlException ? sqlException.getSQLState() : "ERROR")
-                    .build();
-            }
-        } catch (Exception e) {
-            long responseTime = System.currentTimeMillis() - startTime;
-            logger.error("Unexpected error testing database: {}", e.getMessage());
-            
-            return new DatabaseLoginServiceTestResult.Builder()
-                .databaseName("test")
-                .serviceName("test")
+        try (UnifiedDatabaseOperation operation = new UnifiedDatabaseOperationBuilder()
                 .dbType("oracle")
-                .success(false)
-                .responseTimeMs(responseTime)
-                .error(e.getMessage(), "ERROR")
-                .build();
+                .host("localhost")
+                .port(1521)
+                .username("user")
+                .password("pass")
+                .build()) {
+            operation.executeQuery(getTestQuery("oracle")); // Execute query without storing results
+            return buildResult(true, startTime, null);
+        } catch (Exception e) {
+            logger.error("Error testing database: {}", e.getMessage());
+            String sqlState = (e instanceof DatabaseException && e.getCause() instanceof SQLException) 
+                ? ((SQLException) e.getCause()).getSQLState() 
+                : "ERROR";
+            return buildResult(false, startTime, new ErrorInfo(e.getMessage(), sqlState));
         }
     }
 
@@ -127,66 +97,27 @@ public class DatabaseLoginService {
     }
 
     /**
-     * Attempts to establish a database connection using the provided credentials.
-     *
-     * @param url The database URL
-     * @param username The database username
-     * @param password The database password
-     * @return A Connection object if successful
-     * @throws SQLException If the connection attempt fails
-     */
-    public Connection login(String url, String username, String password) throws SQLException {
-        logger.debug("Attempting database login for URL: {}, username: {}", url, username);
-        
-        Properties props = new Properties();
-        props.setProperty("user", username);
-        props.setProperty("password", password);
-        
-        try {
-            Connection conn = DriverManager.getConnection(url, props);
-            logger.info("Successfully connected to database: {}", url);
-            return conn;
-        } catch (SQLException e) {
-            logger.error("Failed to connect to database: {}", url, e);
-            throw e;
-        }
-    }
-
-    /**
-     * Validates the login credentials without establishing a connection.
-     *
-     * @param url The database URL
-     * @param username The database username
-     * @param password The database password
-     * @return true if the credentials are valid, false otherwise
-     */
-    public boolean validateCredentials(String url, String username, String password) {
-        logger.debug("Validating credentials for URL: {}, username: {}", url, username);
-        
-        if (url == null || url.trim().isEmpty()) {
-            logger.error("Database URL cannot be null or empty");
-            return false;
-        }
-        
-        if (username == null || username.trim().isEmpty()) {
-            logger.error("Username cannot be null or empty");
-            return false;
-        }
-        
-        if (password == null || password.trim().isEmpty()) {
-            logger.error("Password cannot be null or empty");
-            return false;
-        }
-        
-        logger.trace("Credentials validated successfully");
-        return true;
-    }
-
-    /**
      * Shuts down the executor service.
      */
     public void shutdown() {
         logger.info("Shutting down DatabaseLoginService");
         executorService.shutdown();
+    }
+
+    private record ErrorInfo(String message, String sqlState) {}
+
+    private DatabaseLoginServiceTestResult buildResult(boolean success, long startTime, ErrorInfo error) {
+        DatabaseLoginServiceTestResult.Builder builder = new DatabaseLoginServiceTestResult.Builder()
+            .databaseName("test")
+            .serviceName("test")
+            .dbType("oracle")
+            .success(success)
+            .responseTimeMs(System.currentTimeMillis() - startTime);
+        
+        if (error != null) {
+            builder.error(error.message(), error.sqlState());
+        }
+        
+        return builder.build();
     }
 } 

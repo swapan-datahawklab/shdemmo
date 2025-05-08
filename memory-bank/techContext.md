@@ -15,11 +15,11 @@ Java is the primary implementation language for the SQL Parser and Database Mana
 // Example Java code from the SQL parser
 public final class SqlScriptParser {
     private static final Logger logger = LogManager.getLogger(SqlScriptParser.class);
-    
+
     private SqlScriptParser() {
         throw new AssertionError("Utility class - do not instantiate");
     }
-    
+
     public static Map<Integer, String> parseSqlFile(File scriptFile) throws SqlParseException {
         // Implementation details...
     }
@@ -74,6 +74,7 @@ The application runs on the Java Virtual Machine (JVM):
 - **Type Conversion**: Automatic conversion of arguments
 - **Help Generation**: Automatic help text generation
 - **Subcommands**: Hierarchical command structure
+- **Supports --transactional flag for DML script execution**
 
 ```java
 @Command(name = "db", mixinStandardHelpOptions = true, version = "1.0",
@@ -82,8 +83,8 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
     @Option(names = {"-t", "--type"}, required = true,
         description = "Database type (oracle, sqlserver, postgresql, mysql)")
     private String dbType;
-    
-    // Other options...
+    @Option(names = {"--transactional"}, defaultValue = "false", description = "Execute DML statements in a transaction (default: false)")
+    private boolean transactional;
 }
 ```
 
@@ -115,23 +116,23 @@ The application is organized into several key packages:
 1. **parser**: SQL parsing and tokenization
    - **SqlScriptParser**: Parses SQL files into individual statements
    - **storedproc**: Handles stored procedure parsing
-   
+
 2. **connection**: Database connectivity
    - **DatabaseConnectionFactory**: Creates connections to different databases
    - **ConnectionConfig**: Configures connection parameters
-   
+
 3. **exception**: Error handling
    - Hierarchical exception structure (DatabaseException, ParserException, etc.)
    - Specific exception types for different failure modes
-   
+
 4. **validate**: Validation logic
    - **DatabaserOperationValidator**: Validates SQL operations
    - **StoredProcedureValidator**: Validates stored procedure syntax
-   
+
 5. **config**: Configuration management
    - **ConfigurationHolder**: Central configuration access
    - **YamlConfigReader**: Loads YAML configuration
-   
+
 6. **error**: Error handling utilities
    - **DatabaseErrorFormatter**: Formats database-specific errors
 
@@ -139,6 +140,7 @@ The application is organized into several key packages:
 
 1. **UnifiedDatabaseRunner**: Main entry point and CLI interface
 2. **UnifiedDatabaseOperation**: Core database operations implementation
+   - **Partitions DML and non-DML statements for script execution; DML can be executed transactionally via CLI flag**
 3. **SqlScriptParser**: Parses SQL scripts into executable statements
 4. **DatabaseConnectionFactory**: Creates appropriate database connections
 
@@ -199,15 +201,39 @@ The `StoredProcedureParser` handles:
 3. **Validation**: Ensures syntactic correctness
 4. **Function vs. Procedure**: Differentiates between types
 
-## Error Handling Strategy
+## Error Handling
 
-The application implements a comprehensive error handling strategy:
+### Database Error Management
+The application uses a sophisticated error handling system:
 
-- **Hierarchical exceptions**: Well-organized exception inheritance
-- **Error codes**: Specific codes for different error types
-- **Contextual information**: Detailed error messages with context
-- **Logging**: Extensive logging at appropriate levels
-- **Transaction safety**: Rollback on errors to maintain data integrity
+1. **Core Components**
+   - DatabaseException: Central exception class
+   - DatabaseErrorFormatter: Error translation and formatting
+   - ConfigurationHolder: Configuration-based error mapping
+
+2. **Error Classification**
+   - Standard SQLState codes (ANSI SQL)
+   - Vendor-specific error codes
+   - Custom error types for application-level categorization
+
+3. **Configuration**
+   ```yaml
+   databases:
+     types:
+       oracle:
+         error-mappings:
+           12154: ORACLE_TNS
+           1017: CONN_AUTH
+       postgresql:
+         error-mappings:
+           28000: CONN_AUTH
+   ```
+
+4. **Implementation Details**
+   - Two-tier error handling approach
+   - Configuration-driven vendor mappings
+   - Rich error context preservation
+   - Standardized error formatting
 
 ## Configuration System
 
@@ -265,4 +291,21 @@ db --pre-flight -t mysql -H host -u username -p password -d database script.sql
 - **JAR Packaging**: Self-contained executable JAR
 - **External Configuration**: YAML configuration files
 - **JDBC Drivers**: Pluggable database drivers
-- **CLI Interface**: Primary interaction method 
+- **CLI Interface**: Primary interaction method
+
+## Database Layer
+- JDBC-based database operations
+- Supports multiple database types (Oracle, PostgreSQL, MySQL, SQL Server)
+- Connection pooling and resource management
+- Batch processing capabilities
+- Result set streaming for large data sets
+
+## Error Handling
+- Custom DatabaseException with ErrorType enumeration
+- Structured error messages and SQL state tracking
+- Logging using Log4j2
+
+## Testing Infrastructure
+- Virtual thread support for concurrent testing
+- CSV output for test results
+- Configurable thread pools

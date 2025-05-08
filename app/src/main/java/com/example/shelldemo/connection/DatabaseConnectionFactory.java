@@ -5,241 +5,170 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Map;
 import java.util.Properties;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.example.shelldemo.exception.DatabaseConnectionException;
+import com.example.shelldemo.exception.DatabaseException;
+import com.example.shelldemo.exception.DatabaseException.ErrorType;
+import com.example.shelldemo.config.ConfigurationHolder;
+import java.util.Optional;
+import java.util.Arrays;
 
 /**
- * Factory class for creating database connections.
- * Supports different database types and connection methods using templates.
+ * Factory for creating database connections using validated configurations.
  */
 public class DatabaseConnectionFactory {
     private static final Logger logger = LogManager.getLogger(DatabaseConnectionFactory.class);
+    private final JdbcDriverLoader driverLoader;
 
-    // Standard database connection templates
-    private static final Map<String, String> CONNECTION_TEMPLATES = Map.of(
-        "postgresql", "jdbc:postgresql://%s:%d/%s",
-        "mysql", "jdbc:mysql://%s:%d/%s",
-        "oracle", "jdbc:oracle:thin:@//%s:%d/%s",
-        "sqlserver", "jdbc:sqlserver://%s:%d;databaseName=%s"
-    );
-
-    // Default ports for each database type
-    private static final Map<String, Integer> DEFAULT_PORTS = Map.of(
-        "postgresql", 5432,
-        "mysql", 3306,
-        "oracle", 1521,
-        "sqlserver", 1433
-    );
-
-    // Default connection properties for each database type
-    private static final Map<String, Properties> DEFAULT_PROPERTIES = Map.of(
-        "postgresql", createProperties("ssl", "true", "sslmode", "verify-full"),
-        "mysql", createProperties("useSSL", "true", "allowPublicKeyRetrieval", "true", "serverTimezone", "UTC"),
-        "oracle", new Properties(),
-        "sqlserver", createProperties("encrypt", "true", "trustServerCertificate", "true")
-    );
-
-    private static Properties createProperties(String... keyValues) {
-        Properties props = new Properties();
-        for (int i = 0; i < keyValues.length; i += 2) {
-            props.setProperty(keyValues[i], keyValues[i + 1]);
-        }
-        return props;
+    public DatabaseConnectionFactory() {
+        this.driverLoader = new JdbcDriverLoader();
+        logger.debug("DatabaseConnectionFactory initialized");
     }
 
     /**
-     * Validates and enriches a database connection configuration.
+     * Creates a connection using a pre-configured ConnectionConfig.
      * 
-     * @param dbType the database type
-     * @param config the connection configuration
-     * @return the validated and initialized connection configuration
-     * @throws DatabaseConnectionException if validation fails
-     */
-    public ConnectionConfig validateAndEnrichConfig(String dbType, ConnectionConfig config) {
-        String validatedDbType = dbType.trim().toLowerCase();
-        if (!CONNECTION_TEMPLATES.containsKey(validatedDbType)) {
-            String errorMessage = "Invalid or unsupported database type: " + validatedDbType;
-            logger.error(errorMessage);
-            throw new DatabaseConnectionException(errorMessage);
-        }
-
-        // Set up connection configuration
-        if (config.getPort() <= 0) {
-            config.setPort(DEFAULT_PORTS.get(validatedDbType));
-        }
-        config.setDbType(validatedDbType);
-        
-        // Handle Oracle-specific connection type
-        if (validatedDbType.equals("oracle")) {
-            String connectionType = config.getConnectionType();
-            if (connectionType == null || (!connectionType.equals("thin") && !connectionType.equals("ldap"))) {
-                logger.info("No connection type specified for Oracle, defaulting to LDAP");
-                config.setConnectionType("ldap");
-            }
-        }
-        
-        // Validate required fields
-        if (config.getHost() == null || config.getHost().trim().isEmpty()) {
-            throw new DatabaseConnectionException("Database host must be specified");
-        }
-        
-        if (config.getServiceName() == null || config.getServiceName().trim().isEmpty()) {
-            throw new DatabaseConnectionException("Database service name/database name must be specified");
-        }
-        
-        return config;
-    }
-
-    /**
-     * Gets a database connection based on the provided configuration.
-     * 
-     * @param config The connection configuration
-     * @return A database connection
+     * @param config The validated connection configuration
+     * @return A new database connection
      * @throws SQLException if connection fails
      */
-    public Connection getConnection(ConnectionConfig config) throws SQLException {
-        String dbType = config.getDbType().toLowerCase();
-        if (!CONNECTION_TEMPLATES.containsKey(dbType)) {
-            throw new DatabaseConnectionException("Unsupported database type: " + dbType);
+    public Connection createConnection(ConnectionConfig config) throws SQLException {
+        logger.info("Creating database connection for type: {}, host: {}", config.getDbType(), config.getHost());
+        
+        try {
+            String url = buildConnectionUrl(config);
+            logger.debug("Using connection URL: {}", url);
+            
+            Properties props = buildConnectionProperties(config);
+            if (logger.isDebugEnabled()) {
+                logger.debug("Connection properties configured: {}", 
+                    props.stringPropertyNames().stream()
+                        .filter(key -> !key.contains("password"))
+                        .map(key -> key + "=" + props.getProperty(key))
+                        .reduce((a, b) -> a + ", " + b)
+                        .orElse("none"));
+            }
+            
+            Connection conn = DriverManager.getConnection(url, props);
+            logger.info("Successfully established connection to {} database at {}:{}",config.getDbType(), config.getHost(), config.getPort());
+            return conn;
+        } catch (SQLException e) {
+            String context = String.format("host=%s, port=%d, service=%s", config.getHost(), config.getPort(), config.getServiceName());
+           
+            throw DatabaseException.fromSQLException(
+                "Failed to establish database connection",
+                e,
+                config.getDbType(),
+                context
+            );
+        }
+    }
+
+    /**
+     * Creates a connection using builder pattern.
+     * 
+     * @param configBuilder A lambda that configures the connection
+     * @return A new database connection
+     * @throws SQLException if connection fails
+     */
+    public Connection createConnection(ConnectionConfigBuilder configBuilder) throws SQLException {
+        logger.debug("Creating connection using builder pattern");
+        ConnectionConfig config = configBuilder.configure(ConnectionConfig.builder()).build();
+        return createConnection(config);
+    }
+
+    /**
+     * Loads a JDBC driver from the specified path before creating a connection.
+     * 
+     * @param driverPath Path to the JDBC driver
+     * @param config The connection configuration
+     * @return A new database connection
+     * @throws SQLException if connection fails
+     */
+    public Connection createConnection(String driverPath, ConnectionConfig config) throws SQLException {
+        if (driverPath != null && !driverPath.isEmpty()) {
+            logger.info("Loading JDBC driver from path: {}", driverPath);
+            driverLoader.loadDriver(driverPath);
+            logger.debug("JDBC driver loaded successfully");
+        }
+        return createConnection(config);
+    }
+
+    private <T> Optional<T> getNestedValue(Map<String, Object> map, Class<T> type, String... keys) {
+        return Optional.ofNullable(map)
+            .map(m -> keys.length == 0 ? m.get(keys[0]) : 
+                Arrays.stream(keys).reduce(m.get(keys[0]), this::getNextValue, (a, b) -> b))
+            .filter(type::isInstance)
+            .map(type::cast);
+    }
+
+    private Object getNextValue(Object obj, String key) {
+        return obj instanceof Map ? ((Map<?, ?>) obj).get(key) : null;
+    }
+
+    private String buildConnectionUrl(ConnectionConfig config) {
+        Map<String, Object> dbmsConfig = ConfigurationHolder.getInstance().getDatabaseConfig(config.getDbType());
+        
+        // Get templates from configuration
+        @SuppressWarnings("unchecked")
+        Map<String, Object> templates = (Map<String, Object>) dbmsConfig.get("templates");
+        if (templates != null) {
+            logger.info("Available templates configuration:");
+            templates.forEach((key, value) -> logger.info("  {} -> {}", key, value));
         }
 
-        // Set default port if not specified
-        if (config.getPort() <= 0) {
-            config.setPort(DEFAULT_PORTS.get(dbType));
+        // Get JDBC templates
+        @SuppressWarnings("unchecked")
+        Map<String, Object> jdbc = templates != null ? (Map<String, Object>) templates.get("jdbc") : null;
+        
+        String urlTemplate = jdbc != null ? (String) jdbc.get("defaultTemplate") : null;
+        
+        if (urlTemplate == null) {
+            logger.error("No URL template found for database type: {}", config.getDbType());
+            throw new DatabaseException(
+                String.format("Missing URL template for database type: %s", config.getDbType()),
+                ErrorType.CONFIG_NOT_FOUND
+            );
         }
-
-        // Generate connection URL
-        String connectionUrl = String.format(
-            CONNECTION_TEMPLATES.get(dbType),
+        
+        String url = String.format(
+            urlTemplate,
             config.getHost(),
             config.getPort(),
             config.getServiceName()
         );
+        logger.debug("Built connection URL: {}", url);
+        return url;
+    }
 
-        // Setup connection properties
+    private Properties buildConnectionProperties(ConnectionConfig config) {
         Properties props = new Properties();
-        props.putAll(DEFAULT_PROPERTIES.getOrDefault(dbType, new Properties()));
+        Map<String, Object> dbmsConfig = ConfigurationHolder.getInstance().getDatabaseConfig(config.getDbType());
+        
+        // Make connection-properties optional
+        try {
+            Map<String, Object> connProps = ConnectionConfig.getConfigMap(dbmsConfig, "properties");
+            if (connProps != null) {
+                logger.debug("Applying {} database-specific connection properties", connProps.size());
+                for (Map.Entry<String, Object> entry : connProps.entrySet()) {
+                    props.setProperty(entry.getKey(), entry.getValue().toString());
+                }
+            }
+        } catch (DatabaseException e) {
+            // Log as debug since this is optional
+            logger.debug("No additional connection properties found for database type: {}", config.getDbType());
+        }
+        
+        // Always set these required properties
         props.setProperty("user", config.getUsername());
         props.setProperty("password", config.getPassword());
-
-        logger.info("Attempting to connect to {} using URL: {}", dbType, connectionUrl);
-        try {
-            return DriverManager.getConnection(connectionUrl, props);
-        } catch (SQLException e) {
-            throw handleConnectionException(dbType, e, config);
-        }
-    }
-
-    private RuntimeException handleConnectionException(String dbType, SQLException e, ConnectionConfig config) {
-        if ("oracle".equals(dbType)) {
-            try {
-                // Dynamically load OracleConnectionException
-                Class<?> oracleExceptionClass = Class.forName("com.example.shelldemo.connection.oracle.OracleConnectionException");
-                String errorCode = determineOracleErrorCode(e, config);
-                return (RuntimeException) oracleExceptionClass
-                    .getConstructor(String.class, Throwable.class, String.class)
-                    .newInstance("Failed to connect to Oracle database", e, errorCode);
-            } catch (ReflectiveOperationException ex) {
-                logger.warn("OracleConnectionException not available, falling back to DatabaseConnectionException");
-            }
-        }
-        return new DatabaseConnectionException("Failed to connect to database", e);
-    }
-
-    private String determineOracleErrorCode(SQLException e, ConnectionConfig config) {
-        // Extract Oracle-specific error code
-        String errorCode = "UNKNOWN";
-        if (e.getMessage() != null && e.getMessage().contains("ORA-")) {
-            errorCode = e.getMessage().substring(
-                e.getMessage().indexOf("ORA-"),
-                e.getMessage().indexOf("ORA-") + 9
-            );
-        }
-        return errorCode;
-    }
-
-    /**
-     * Validates a PL/SQL block for syntax without executing it.
-     * 
-     * @param connection The database connection
-     * @param plsql The PL/SQL block to validate
-     * @throws SQLException if validation fails
-     */
-    public void validatePlsqlSyntax(Connection connection, String plsql, String dbType, String username) throws SQLException {
-        String validationQuery = switch (dbType.toLowerCase()) {
-            case "oracle" -> 
-                "BEGIN " +
-                "    DBMS_UTILITY.COMPILE_SCHEMA('" + username.toUpperCase() + "', FALSE);" +
-                "    " + plsql + " " +
-                "END;";
-            case "postgresql" -> 
-                "DO $$ BEGIN " + plsql + " END $$;";
-            case "sqlserver" ->
-                "EXEC sp_validateloginname " + plsql;
-            default -> throw new SQLException("PL/SQL validation not supported for " + dbType);
-        };
         
-        try (var stmt = connection.prepareStatement(validationQuery)) {
-            stmt.setQueryTimeout(10);
-            stmt.executeQuery();
-        }
+        logger.debug("Connection properties set for user: {}", config.getUsername());
+        return props;
     }
 
-    /**
-     * Validates a SQL statement for syntax without executing it.
-     * 
-     * @param connection The database connection
-     * @param sql The SQL statement to validate
-     * @throws SQLException if validation fails
-     */
-    public void validateSqlSyntax(Connection connection, String sql, String dbType) throws SQLException {
-        String validationQuery = switch (dbType.toLowerCase()) {
-            case "oracle" -> 
-                "SELECT 1 FROM DUAL WHERE EXISTS (" + sql + ")";
-            case "postgresql", "mysql" -> 
-                "EXPLAIN " + sql;
-            case "sqlserver" ->
-                "SET PARSEONLY ON; " + sql + "; SET PARSEONLY OFF;";
-            default -> throw new SQLException("SQL validation not supported for " + dbType);
-        };
-        
-        try (var stmt = connection.prepareStatement(validationQuery)) {
-            stmt.setQueryTimeout(10);
-            stmt.executeQuery();
-        }
-    }
-
-    /**
-     * Gets the execution plan for a SQL statement without executing it.
-     * 
-     * @param connection The database connection
-     * @param sql The SQL statement to explain
-     * @return The execution plan as a string
-     * @throws SQLException if explain plan fails
-     */
-    public String getExplainPlan(Connection connection, String sql, String dbType) throws SQLException {
-        String explainQuery = switch (dbType.toLowerCase()) {
-            case "oracle" -> 
-                "EXPLAIN PLAN FOR " + sql;
-            case "postgresql" -> 
-                "EXPLAIN (ANALYZE false, COSTS true, FORMAT TEXT) " + sql;
-            case "mysql" -> 
-                "EXPLAIN FORMAT=TREE " + sql;
-            case "sqlserver" ->
-                "SET SHOWPLAN_XML ON; " + sql + "; SET SHOWPLAN_XML OFF;";
-            default -> throw new SQLException("Explain plan not supported for " + dbType);
-        };
-        
-        StringBuilder plan = new StringBuilder();
-        try (var stmt = connection.prepareStatement(explainQuery);
-             var rs = stmt.executeQuery()) {
-            while (rs.next()) {
-                plan.append(rs.getString(1)).append("\n");
-            }
-        }
-        return plan.toString();
+    @FunctionalInterface
+    public interface ConnectionConfigBuilder {
+        ConnectionConfig.Builder configure(ConnectionConfig.Builder builder);
     }
 }

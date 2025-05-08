@@ -18,7 +18,7 @@
     <dependencies>
         <dependency>
             <groupId>com.example.shelldemo</groupId>
-            <artifactId>shdemmo-app</artifactId>
+            <artifactId>dbscriptrunner</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

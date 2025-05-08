@@ -35,8 +35,17 @@
                 <SKIP_MVN_BUILD>true</SKIP_MVN_BUILD>
               </environmentVariables>
               <arguments>
-                <argument>${script.shell.arg}</argument>
                 <argument>create-distribution/create-bundleall.sh</argument>
+                <argument>--app-name</argument>
+                <argument>dbscriptrunner</argument>
+                <argument>--app-version</argument>
+                <argument>${project.version}</argument>
+                <argument>--main-class</argument>
+                <argument>com.example.shelldemo.UnifiedDatabaseRunner</argument>
+                <argument>--output-dir</argument>
+                <argument>target</argument>
+                <argument>--artifact</argument>
+                <argument>${project.parent.basedir}/app/target/dbscriptrunner-1.0-SNAPSHOT.jar</argument>
               </arguments>
               <successCodes>
                 <successCode>0</successCode>
