@@ -1,11 +1,38 @@
 #!/bin/bash
 
+# This script must be run in Git Bash on Windows. Archive creation uses PowerShell.
+
 # Exit on error
 set -e
+
+# Debug output for troubleshooting
+# echo "[DEBUG] PATH: $PATH"
+# echo "[DEBUG] which mvn: $(which mvn)"
+# echo "[DEBUG] JAVA_HOME: $JAVA_HOME"
+# mvn -version
 
 # Ensure consistent behavior across platforms
 export MSYS_NO_PATHCONV=1
 export MSYS2_ARG_CONV_EXCL="*"
+
+# Robust OS detection for both Git Bash and Windows CMD/PowerShell
+IS_WINDOWS=false
+if command -v uname >/dev/null 2>&1; then
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*)
+            IS_WINDOWS=true
+            ;;
+    esac
+fi
+if [ "$IS_WINDOWS" = false ] && [ "${OS:-}" = "Windows_NT" ]; then
+    IS_WINDOWS=true
+fi
+if [ "$IS_WINDOWS" = true ]; then
+    BUNDLE_NAME="shdemmo-bundle-windows"
+else
+    echo "[ERROR] This script must be run on Windows (Git Bash, CMD, or PowerShell)." >&2
+    exit 1
+fi
 
 # Default values (can be overridden by args or auto-detection)
 APP_NAME=""
@@ -31,6 +58,16 @@ else
     NC=''
 fi
 
+log_info() {
+    echo -e "${GREEN}[INFO]${NC} $*"
+}
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $*" >&2
+}
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $*"
+}
+
 # Help function
 show_help() {
 cat << EOF
@@ -52,34 +89,6 @@ Example:
     ./$(basename "$0") --app-name myapp --app-version 1.2.3 --main-class com.example.Main --add-drivers
 EOF
     exit 0
-}
-
-# Detect OS and shell environment
-detect_environment() {
-    case "$(uname -s)" in
-        Linux*)     
-            IS_WINDOWS=false
-            BUNDLE_NAME="shdemmo-bundle-linux"
-            ;;
-        MINGW*|MSYS*|CYGWIN*)     
-            IS_WINDOWS=true
-            BUNDLE_NAME="shdemmo-bundle-windows"
-            ;;
-        *)          
-            log_error "Unsupported operating system"
-            exit 1
-            ;;
-    esac
-}
-
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $*"
-}
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $*" >&2
-}
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $*"
 }
 
 # Find Maven repository in a cross-platform way
@@ -145,7 +154,8 @@ download_jdbc_driver() {
     IFS=':' read -r groupId artifactId version <<< "$maven_coords"
     
     # Download using Maven with explicit repository path
-    mvn dependency:copy \
+    export MAVEN_OPTS=""
+    /c/usr/bin/apache-maven-3.9.9/bin/mvn dependency:copy \
         -Dartifact="$maven_coords" \
         -DoutputDirectory="$target_dir" \
         -Dmdep.stripVersion=true \
@@ -258,7 +268,8 @@ download_drivers_if_requested() {
                 db_type="${key%%.driver}"
                 target_dir="$BUNDLE_NAME/drivers/$db_type"
                 mkdir -p "$target_dir"
-                mvn dependency:copy -Dartifact="$value" -DoutputDirectory="$target_dir" || log_warn "Failed to download $db_type driver"
+                export MAVEN_OPTS=""
+                /c/usr/bin/apache-maven-3.9.9/bin/mvn dependency:copy -Dartifact="$value" -DoutputDirectory="$target_dir" || log_warn "Failed to download $db_type driver"
             done < "$OLDPWD/$DRIVERS_FILE"
         else
             log_warn "Drivers file not found: $DRIVERS_FILE"
@@ -291,24 +302,9 @@ create_bundle_readme() {
 
 # Create archive for Windows
 create_bundle_archive() {
-    if [ "$IS_WINDOWS" = true ]; then
-        log_info "Creating Windows bundle archive..."
-        if command -v 7z >/dev/null 2>&1; then
-            7z a -tzip "${BUNDLE_NAME}.zip" "$BUNDLE_NAME"
-        else
-            log_warn "7z not found, using zip instead"
-            zip -qr "${BUNDLE_NAME}.zip" "$BUNDLE_NAME"
-        fi
-        log_info "Windows bundle created: ${BUNDLE_NAME}.zip"
-    else
-        log_info "Creating Linux bundle created in directory: $BUNDLE_NAME"
-        if command -v zip >/dev/null 2>&1; then
-            zip -qr "${BUNDLE_NAME}.zip" "$BUNDLE_NAME"
-            log_info "Linux bundle archive created: ${BUNDLE_NAME}.zip"
-        else
-            log_warn "zip not found, skipping archive creation"
-        fi
-    fi
+    log_info "Creating Windows bundle archive using PowerShell Compress-Archive..."
+    powershell.exe -Command "Compress-Archive -Path '$BUNDLE_NAME' -DestinationPath '${BUNDLE_NAME}.zip' -Force"
+    log_info "Windows bundle created: ${BUNDLE_NAME}.zip"
 }
 
 print_final_instructions() {
@@ -354,9 +350,35 @@ clean_previous_bundle() {
     fi
 }
 
+# Add a new function to copy drivers from target/drivers to the bundle
+copy_drivers_from_target() {
+    local src_base="$PROJECT_ROOT/create-distribution/target/drivers"
+    local dest_base="$BUNDLE_NAME/drivers"
+    for db in oracle mysql postgresql sqlserver; do
+        local src_dir="$src_base/$db"
+        local dest_dir="$dest_base/$db"
+        mkdir -p "$dest_dir"
+        if [ -d "$src_dir" ]; then
+            cp "$src_dir"/*.jar "$dest_dir/" 2>/dev/null || true
+        fi
+    done
+    log_info "Copied JDBC drivers from $src_base to $dest_base"
+}
+
+copy_log4j_config() {
+    local src_log4j="$PROJECT_ROOT/app/src/main/resources/log4j2.xml"
+    local dest_dir="$BUNDLE_NAME/resources"
+    mkdir -p "$dest_dir"
+    if [ -f "$src_log4j" ]; then
+        cp "$src_log4j" "$dest_dir/"
+        log_info "Copied log4j2.xml to $dest_dir"
+    else
+        log_warn "log4j2.xml not found at $src_log4j, skipping copy."
+    fi
+}
+
 # Main execution flow
 main() {
-    detect_environment
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     M2_HOME="$(find_maven_home)"
     PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -367,10 +389,11 @@ main() {
     auto_detect_artifact
     check_required_files
     create_bundle_structure "$BUNDLE_NAME"
+    copy_log4j_config
     copy_sample_sql_scripts
     copy_uber_jar_to_bundle
     copy_bundle_templates
-    download_drivers_if_requested
+    copy_drivers_from_target
     create_custom_jre
     create_bundle_readme
     create_bundle_archive

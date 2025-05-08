@@ -66,39 +66,39 @@
 
         <!-- Configuration loading loggers -->
         <Logger name="com.example.shelldemo.config.YamlConfigReader" level="ERROR" additivity="false">
-            <!-- <AppenderRef ref="Console"/> -->
+            <AppenderRef ref="Console"/>
             <AppenderRef ref="AsyncFile"/>
             <AppenderRef ref="ErrorFile"/>
         </Logger>
 
         <Logger name="com.example.shelldemo.connection.DatabaseConnectionFactory" level="DEBUG" additivity="false">
-            <!-- <AppenderRef ref="Console"/> -->
+            <AppenderRef ref="Console"/>
             <AppenderRef ref="AsyncFile"/>
             <AppenderRef ref="ErrorFile"/>
         </Logger>
         
         <Logger name="com.example.shelldemo.config.DatabaseProperties" level="ERROR" additivity="false">
-            <!-- <AppenderRef ref="Console"/> -->
+            <AppenderRef ref="Console"/>
             <AppenderRef ref="AsyncFile"/>
             <AppenderRef ref="ErrorFile"/>
         </Logger>
 
         <!-- Database operations with detailed level -->
         <Logger name="com.example.shelldemo.UnifiedDatabaseOperation" level="ERROR" additivity="false">
-            <!-- <AppenderRef ref="Console"/> -->
+            <AppenderRef ref="Console"/>
             <AppenderRef ref="AsyncFile"/>
             <AppenderRef ref="ErrorFile"/>
         </Logger>
 
         <Logger name="com.example.shelldemo.parser.SqlScriptParser" level="DEBUG" additivity="false">
-            <!-- <AppenderRef ref="Console"/> -->
+            <AppenderRef ref="Console"/>
             <AppenderRef ref="AsyncFile"/>
             <AppenderRef ref="ErrorFile"/>
         </Logger>
 
         <!-- Application Loggers -->
         <Logger name="com.example.shelldemo" level="ERROR" additivity="false">
-            <!-- <AppenderRef ref="Console"/> -->
+            <AppenderRef ref="Console"/>
             <AppenderRef ref="AsyncFile"/>
             <AppenderRef ref="ErrorFile"/>
         </Logger>
@@ -107,7 +107,7 @@
 
         <!-- Root Logger -->
         <Root level="INFO">
-            <!-- <AppenderRef ref="Console"/> -->
+            <AppenderRef ref="Console"/>
             <AppenderRef ref="AsyncFile"/>
             <AppenderRef ref="ErrorFile" level="ERROR"/>
         </Root>
