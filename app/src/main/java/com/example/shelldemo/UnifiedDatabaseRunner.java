@@ -15,7 +15,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
-import com.example.shelldemo.vault.VaultSecretFetcher;
+import com.example.shelldemo.vault.VaultSecretFetcherBuilder;
 
 @Command(name = "db", mixinStandardHelpOptions = true, version = "1.0",description = "Unified Database CLI Tool")
 public class UnifiedDatabaseRunner implements Callable<Integer> {
@@ -209,9 +209,11 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
         String roleId = (String) vaultConfig.get("roleId");
         String secretId = (String) vaultConfig.get("secretId");
         String ait = (String) vaultConfig.get("ait");
-        return new VaultSecretFetcher().fetchOraclePassword(
-            vaultBaseUrl, roleId, secretId, secretName, ait
-        );
+        return new VaultSecretFetcherBuilder()
+            .build()
+            .fetchOraclePassword(
+                vaultBaseUrl, roleId, secretId, secretName, ait
+            );
     }
 
     public static void main(String[] args) {

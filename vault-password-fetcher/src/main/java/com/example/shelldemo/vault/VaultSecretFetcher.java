@@ -10,11 +10,25 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class VaultSecretFetcher {
-    private final HttpClient client = HttpClient.newHttpClient();
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final HttpClient client;
+    private final ObjectMapper mapper;
+
+    VaultSecretFetcher(HttpClient client, ObjectMapper mapper) {
+        this.client = client != null ? client : HttpClient.newHttpClient();
+        this.mapper = mapper != null ? mapper : new ObjectMapper();
+    }
+
+    public VaultSecretFetcher() {
+        this(null, null);
+    }
 
     public String fetchOraclePassword(String vaultBaseUrl, String roleId, String secretId, String dbName, String ait) throws Exception {
-        // 1. Authenticate to Vault
+        String clientToken = authenticateToVault(vaultBaseUrl, roleId, secretId);
+        String secretResponse = fetchOracleSecret(vaultBaseUrl, clientToken, dbName, ait);
+        return parsePasswordFromResponse(secretResponse);
+    }
+
+    private String authenticateToVault(String vaultBaseUrl, String roleId, String secretId) throws Exception {
         String loginUrl = vaultBaseUrl + "/v1/auth/approle/login";
         String loginBody = String.format("{\"role_id\":\"%s\",\"secret_id\":\"%s\"}", roleId, secretId);
         HttpRequest loginRequest = HttpRequest.newBuilder()
@@ -30,8 +44,10 @@ public class VaultSecretFetcher {
         if (clientToken == null || clientToken.isEmpty()) {
             throw new VaultSecretFetcherException("No client token received from Vault");
         }
+        return clientToken;
+    }
 
-        // 2. Fetch Oracle password secret
+    private String fetchOracleSecret(String vaultBaseUrl, String clientToken, String dbName, String ait) throws Exception {
         String secretPath = String.format("%s/v1/secrets/database/oracle/static-creds/%s-%s", vaultBaseUrl, ait, dbName);
         HttpRequest secretRequest = HttpRequest.newBuilder()
                 .uri(URI.create(secretPath))
@@ -42,8 +58,11 @@ public class VaultSecretFetcher {
         if (secretResponse.statusCode() != 200) {
             throw new VaultSecretFetcherException("Vault secret fetch failed: " + secretResponse.body());
         }
-        // Parse the password from the response (adjust the path as needed)
-        String password = mapper.readTree(secretResponse.body()).at("/data/password").asText();
+        return secretResponse.body();
+    }
+
+    private String parsePasswordFromResponse(String secretResponseBody) throws Exception {
+        String password = mapper.readTree(secretResponseBody).at("/data/password").asText();
         if (password == null || password.isEmpty()) {
             throw new VaultSecretFetcherException("No password found in Vault secret");
         }
