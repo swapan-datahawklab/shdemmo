@@ -227,7 +227,7 @@ public class UnifiedDatabaseOperation implements AutoCloseable {
     }
 
     public void executeScript(File scriptFile, boolean transactional) {
-        Map<Integer, String> parsedScripts = parseScriptFile(scriptFile);
+            Map<Integer, String> parsedScripts = parseScriptFile(scriptFile);
         List<String> dmlStatements = new ArrayList<>();
         List<String> otherStatements = new ArrayList<>();
         for (String sql : parsedScripts.values()) {
@@ -250,23 +250,23 @@ public class UnifiedDatabaseOperation implements AutoCloseable {
 
     private void executeDmlStatements(List<String> dmlStatements, boolean transactional) {
         if (dmlStatements.isEmpty()) return;
-        if (transactional) {
+            if (transactional) {
             logger.info("Executing DML statements in a transaction ({})", dmlStatements.size());
-            try {
-                executeInTransaction(conn -> {
-                    for (String sql : dmlStatements) {
-                        executeSingleStatement(sql);
-                    }
-                    return null;
-                });
-            } catch (SQLException e) {
-                logger.error("Failed to execute DML statements in transaction", e);
-                throw new DatabaseException("Failed to execute DML statements in transaction", e, ErrorType.OP_QUERY);
-            }
-        } else {
+                try {
+            executeInTransaction(conn -> {
+                        for (String sql : dmlStatements) {
+                            executeSingleStatement(sql);
+                        }
+                return null;
+            });
+        } catch (SQLException e) {
+                    logger.error("Failed to execute DML statements in transaction", e);
+                    throw new DatabaseException("Failed to execute DML statements in transaction", e, ErrorType.OP_QUERY);
+                }
+            } else {
             logger.info("Executing DML statements non-transactionally ({})", dmlStatements.size());
-            for (String sql : dmlStatements) {
-                executeSingleStatement(sql);
+                for (String sql : dmlStatements) {
+                    executeSingleStatement(sql);
             }
         }
     }

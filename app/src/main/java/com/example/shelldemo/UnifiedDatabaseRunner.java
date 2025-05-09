@@ -15,7 +15,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
-
+import com.example.shelldemo.vault.VaultSecretFetcher;
 
 @Command(name = "db", mixinStandardHelpOptions = true, version = "1.0",description = "Unified Database CLI Tool")
 public class UnifiedDatabaseRunner implements Callable<Integer> {
@@ -87,9 +87,17 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
     @Option(names = {"--show-connect-string"}, description = "Show the generated JDBC connection string and exit")
     private boolean showConnectString;
 
+    @Option(names = {"--secret"}, description = "Fetch Oracle password from Vault using secret name (mutually exclusive with -p/--password)")
+    private String secretName;
+
     @Override
     public Integer call() throws Exception {
         logger.info("Starting database operation - type: {}, target: {}", dbType, target);
+
+        if (secretName != null && password != null && !password.trim().isEmpty()) {
+            logger.error("--secret and -p/--password are mutually exclusive. Please specify only one.");
+            return 2;
+        }
 
         if (showConnectString) {
             return showConnectString();
@@ -104,10 +112,55 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
             logger.info("Loading custom JDBC driver from: {}", driverPath);
         }
 
-        if (password == null || password.trim().isEmpty()) {
+        if (secretName != null) {
+            try {
+                password = fetchPasswordFromVault(secretName);
+            } catch (Exception e) {
+                logger.error("Failed to fetch password from Vault: {}", e.getMessage());
+                return 2;
+            }
+        }
+
+        if ((password == null || password.trim().isEmpty()) && secretName == null) {
             password = promptForPassword();
         }
 
+        return runDatabaseOperation();
+    }
+
+    private int showConnectString() {
+        com.example.shelldemo.connection.ConnectionConfig connConfig = new com.example.shelldemo.connection.ConnectionConfig();
+        connConfig.setDbType(dbType);
+        connConfig.setHost(host);
+        connConfig.setPort(port);
+        connConfig.setUsername(username);
+        connConfig.setPassword(password);
+        connConfig.setServiceName(database);
+        connConfig.setConnectionType(connectionType);
+        String connectString = new com.example.shelldemo.connection.DatabaseConnectionFactory().buildConnectionUrl(connConfig);
+        logger.info(connectString);
+        if ("thin".equalsIgnoreCase(connectionType) && (host == null || host.trim().isEmpty())) {
+            logger.error("Host is required for connection type 'thin'");
+            return 2;
+        }
+        return 0;
+    }
+
+    private String promptForPassword() {
+        System.out.print("Enter database password: ");
+        java.io.Console console = System.console();
+        if (console != null) {
+            char[] pwd = console.readPassword();
+            if (pwd != null) return new String(pwd);
+        } else {
+            try (java.util.Scanner scanner = new java.util.Scanner(System.in)) {
+                return scanner.nextLine();
+            }
+        }
+        return "";
+    }
+
+    private int runDatabaseOperation() {
         try (UnifiedDatabaseOperation operation = UnifiedDatabaseOperation.builder()
                 .host(host)
                 .port(port)
@@ -149,36 +202,16 @@ public class UnifiedDatabaseRunner implements Callable<Integer> {
         }
     }
 
-    private int showConnectString() {
-        com.example.shelldemo.connection.ConnectionConfig connConfig = new com.example.shelldemo.connection.ConnectionConfig();
-        connConfig.setDbType(dbType);
-        connConfig.setHost(host);
-        connConfig.setPort(port);
-        connConfig.setUsername(username);
-        connConfig.setPassword(password);
-        connConfig.setServiceName(database);
-        connConfig.setConnectionType(connectionType);
-        String connectString = new com.example.shelldemo.connection.DatabaseConnectionFactory().buildConnectionUrl(connConfig);
-        logger.info(connectString);
-        if ("thin".equalsIgnoreCase(connectionType) && (host == null || host.trim().isEmpty())) {
-            logger.error("Host is required for connection type 'thin'");
-            return 2;
-        }
-        return 0;
-    }
-
-    private String promptForPassword() {
-        System.out.print("Enter database password: ");
-        java.io.Console console = System.console();
-        if (console != null) {
-            char[] pwd = console.readPassword();
-            if (pwd != null) return new String(pwd);
-        } else {
-            try (java.util.Scanner scanner = new java.util.Scanner(System.in)) {
-                return scanner.nextLine();
-            }
-        }
-        return "";
+    private String fetchPasswordFromVault(String secretName) throws Exception {
+        var config = com.example.shelldemo.config.ConfigurationHolder.getInstance();
+        var vaultConfig = config.getDatabaseConfig("vault");
+        String vaultBaseUrl = (String) vaultConfig.get("baseUrl");
+        String roleId = (String) vaultConfig.get("roleId");
+        String secretId = (String) vaultConfig.get("secretId");
+        String ait = (String) vaultConfig.get("ait");
+        return new VaultSecretFetcher().fetchOraclePassword(
+            vaultBaseUrl, roleId, secretId, secretName, ait
+        );
     }
 
     public static void main(String[] args) {

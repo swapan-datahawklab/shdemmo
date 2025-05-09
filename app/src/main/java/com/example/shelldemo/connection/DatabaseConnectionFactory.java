@@ -103,27 +103,27 @@ public class DatabaseConnectionFactory {
         }
         @SuppressWarnings("unchecked")
         Map<String, Object> jdbc = templates != null ? (Map<String, Object>) templates.get("jdbc") : null;
-
+        
         if ("ldap".equalsIgnoreCase(config.getConnectionType())) {
             return buildLdapConnectionUrl(config, templates, jdbc);
         } else {
-            String urlTemplate = jdbc != null ? (String) jdbc.get("defaultTemplate") : null;
+        String urlTemplate = jdbc != null ? (String) jdbc.get("defaultTemplate") : null;
             if (urlTemplate == null) {
                 urlTemplate = jdbc != null ? (String) jdbc.get("default") : null;
             }
-            if (urlTemplate == null) {
-                throw new DatabaseException(
-                    String.format("Missing URL template for database type: %s", config.getDbType()),
-                    ErrorType.CONFIG_NOT_FOUND
-                );
-            }
-            String url = String.format(
-                urlTemplate,
-                config.getHost(),
-                config.getPort(),
-                config.getServiceName()
+        if (urlTemplate == null) {
+            throw new DatabaseException(
+                String.format("Missing URL template for database type: %s", config.getDbType()),
+                ErrorType.CONFIG_NOT_FOUND
             );
-            logger.debug("Built connection URL: {}", url);
+        }
+        String url = String.format(
+            urlTemplate,
+            config.getHost(),
+            config.getPort(),
+            config.getServiceName()
+        );
+        logger.debug("Built connection URL: {}", url);
             return url;
         }
     }

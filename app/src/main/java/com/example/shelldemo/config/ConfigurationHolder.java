@@ -49,8 +49,8 @@ public class ConfigurationHolder {
             }
             if (inputStream == null) {
                 inputStream = getClass().getClassLoader().getResourceAsStream(CONFIG_PATH);
-                if (inputStream == null) {
-                    inputStream = Thread.currentThread().getContextClassLoader().getResourceAsStream(CONFIG_PATH);
+            if (inputStream == null) {
+                inputStream = Thread.currentThread().getContextClassLoader().getResourceAsStream(CONFIG_PATH);
                 }
             }
             if (inputStream == null) {

@@ -303,8 +303,8 @@ create_bundle_readme() {
 # Create archive for Windows
 create_bundle_archive() {
     if [ "$IS_WINDOWS" = true ]; then
-        log_info "Creating Windows bundle archive using PowerShell Compress-Archive..."
-        powershell.exe -Command "Compress-Archive -Path '$BUNDLE_NAME' -DestinationPath '${BUNDLE_NAME}.zip' -Force"
+    log_info "Creating Windows bundle archive using PowerShell Compress-Archive..."
+    powershell.exe -Command "Compress-Archive -Path '$BUNDLE_NAME' -DestinationPath '${BUNDLE_NAME}.zip' -Force"
     else
         log_info "Creating Unix bundle archive using zip command..."
         zip -rq "${BUNDLE_NAME}.zip" "$BUNDLE_NAME"

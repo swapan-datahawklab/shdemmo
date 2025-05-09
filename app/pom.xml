@@ -16,10 +16,17 @@
   <description>Oracle Database Utilities with Spring Shell Interface</description>
 
   <dependencies>
-        <dependency>
+
+    <dependency>
+      <groupId>com.example.shelldemo.vault</groupId>
+      <artifactId>vault-password-fetcher</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
           <groupId>com.opencsv</groupId>
           <artifactId>opencsv</artifactId>
-      </dependency>
+     </dependency>
     <!-- Oracle JDBC Driver -->
     <dependency>
       <groupId>com.oracle.database.jdbc</groupId>
